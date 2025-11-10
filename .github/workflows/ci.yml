@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libglm-dev
+
+      - name: Configure (require meshes, generate placeholders)
+        run: cmake --preset require-meshes -DGENERATE_PLACEHOLDER_MESHES=ON
+
+      - name: Build
+        run: cmake --build build -- -j2
+
+      - name: Run under LLDB and capture output
+        run: |
+          cd build
+          # Run under lldb in batch mode to get a backtrace if a crash occurs
+          lldb --batch -o run -o bt -- ./Raytracer > run.log 2>&1 || true
+          echo "--- Program output ---"
+          tail -n +1 run.log || true
+
+      - name: Upload run log
+        uses: actions/upload-artifact@v4
+        with:
+          name: raytracer-run-log
+          path: build/run.log
+
+  asan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (clang + glm)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake libglm-dev build-essential
+
+      - name: Configure (ASAN)
+        run: |
+          mkdir -p build-asan
+          cd build-asan
+          CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Debug -DGENERATE_PLACEHOLDER_MESHES=ON -DUSE_BUNDLED_GLM=OFF -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+
+      - name: Build (ASAN)
+        run: |
+          cd build-asan
+          cmake --build . -- -j2
+
+      - name: Run under ASAN and capture output
+        run: |
+          cd build-asan
+          ./Raytracer > run-asan.log 2>&1 || true
+          echo "--- ASAN Program output ---"
+          tail -n +1 run-asan.log || true
+
+      - name: Upload ASAN log
+        uses: actions/upload-artifact@v4
+        with:
+          name: raytracer-asan-log
+          path: build-asan/run-asan.log
