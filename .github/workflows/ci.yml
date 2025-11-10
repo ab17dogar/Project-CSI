@@ -3,6 +3,24 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      CMAKE_PRESET:
+        description: 'CMake preset to use (e.g. require-meshes, default)'
+        required: false
+        default: 'require-meshes'
+      USE_BUNDLED_GLM:
+        description: 'Use bundled GLM (ON/OFF)'
+        required: false
+        default: 'OFF'
+      GENERATE_PLACEHOLDER_MESHES:
+        description: 'Generate placeholder meshes during configure (ON/OFF)'
+        required: false
+        default: 'ON'
+      REQUIRE_MESHES:
+        description: 'Fail configure if meshes are missing (ON/OFF)'
+        required: false
+        default: 'OFF'
 
 jobs:
   build:
@@ -17,8 +35,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake libglm-dev
 
-      - name: Configure (require meshes, generate placeholders)
-        run: cmake --preset require-meshes -DGENERATE_PLACEHOLDER_MESHES=ON
+      - name: Configure (preset + placeholders)
+        env:
+          CMAKE_PRESET: ${{ github.event.inputs.CMAKE_PRESET || 'require-meshes' }}
+          USE_BUNDLED_GLM: ${{ github.event.inputs.USE_BUNDLED_GLM || 'OFF' }}
+          GENERATE_PLACEHOLDER_MESHES: ${{ github.event.inputs.GENERATE_PLACEHOLDER_MESHES || 'ON' }}
+          REQUIRE_MESHES: ${{ github.event.inputs.REQUIRE_MESHES || 'OFF' }}
+        run: |
+          echo "Using CMake preset: ${CMAKE_PRESET}"
+          cmake --preset "${CMAKE_PRESET}" -DGENERATE_PLACEHOLDER_MESHES=${GENERATE_PLACEHOLDER_MESHES} -DUSE_BUNDLED_GLM=${USE_BUNDLED_GLM} -DREQUIRE_MESHES=${REQUIRE_MESHES}
 
       - name: Build
         run: cmake --build build -- -j2
@@ -39,6 +64,9 @@ jobs:
 
   asan:
     runs-on: ubuntu-latest
+    env:
+      USE_BUNDLED_GLM: ${{ github.event.inputs.USE_BUNDLED_GLM || 'OFF' }}
+      GENERATE_PLACEHOLDER_MESHES: ${{ github.event.inputs.GENERATE_PLACEHOLDER_MESHES || 'ON' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +80,7 @@ jobs:
         run: |
           mkdir -p build-asan
           cd build-asan
-          CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Debug -DGENERATE_PLACEHOLDER_MESHES=ON -DUSE_BUNDLED_GLM=OFF -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+          CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Debug -DGENERATE_PLACEHOLDER_MESHES=${GENERATE_PLACEHOLDER_MESHES} -DUSE_BUNDLED_GLM=${USE_BUNDLED_GLM} -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
 
       - name: Build (ASAN)
         run: |
