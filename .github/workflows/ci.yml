@@ -2,7 +2,16 @@ name: CI
 
 on:
   push:
+    # Run automatically when commits are pushed to the main branch (e.g. merges)
+    branches:
+      - main
+
   pull_request:
+    # Run automatically for pull requests that target the main branch
+    branches:
+      - main
+
+  # Keep manual dispatch so you still get the "Run workflow" button
   workflow_dispatch:
     inputs:
       CMAKE_PRESET:
