@@ -1,0 +1,52 @@
+name: Quick Build (UI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      CMAKE_PRESET:
+        description: 'CMake preset to use (e.g. require-meshes, default)'
+        required: false
+        default: 'require-meshes'
+      BUILD_TYPE:
+        description: 'CMake build type (Release/Debug)'
+        required: false
+        default: 'Release'
+      USE_BUNDLED_GLM:
+        description: 'Use bundled GLM (ON/OFF)'
+        required: false
+        default: 'OFF'
+      GENERATE_PLACEHOLDER_MESHES:
+        description: 'Generate placeholder meshes during configure (ON/OFF)'
+        required: false
+        default: 'ON'
+
+jobs:
+  quick-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libglm-dev
+
+      - name: Configure
+        env:
+          CMAKE_PRESET: ${{ github.event.inputs.CMAKE_PRESET || 'require-meshes' }}
+          BUILD_TYPE: ${{ github.event.inputs.BUILD_TYPE || 'Release' }}
+          USE_BUNDLED_GLM: ${{ github.event.inputs.USE_BUNDLED_GLM || 'OFF' }}
+          GENERATE_PLACEHOLDER_MESHES: ${{ github.event.inputs.GENERATE_PLACEHOLDER_MESHES || 'ON' }}
+        run: |
+          echo "CMake preset: ${CMAKE_PRESET}"
+          cmake --preset "${CMAKE_PRESET}" -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DGENERATE_PLACEHOLDER_MESHES=${GENERATE_PLACEHOLDER_MESHES} -DUSE_BUNDLED_GLM=${USE_BUNDLED_GLM}
+
+      - name: Build
+        run: cmake --build build -- -j2
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raytracer-build
+          path: build/Raytracer

@@ -21,6 +21,10 @@ on:
         description: 'Fail configure if meshes are missing (ON/OFF)'
         required: false
         default: 'OFF'
+      BUILD_TYPE:
+        description: 'CMake build type (Release/Debug)'
+        required: false
+        default: 'Release'
 
 jobs:
   build:
@@ -41,9 +45,10 @@ jobs:
           USE_BUNDLED_GLM: ${{ github.event.inputs.USE_BUNDLED_GLM || 'OFF' }}
           GENERATE_PLACEHOLDER_MESHES: ${{ github.event.inputs.GENERATE_PLACEHOLDER_MESHES || 'ON' }}
           REQUIRE_MESHES: ${{ github.event.inputs.REQUIRE_MESHES || 'OFF' }}
+          BUILD_TYPE: ${{ github.event.inputs.BUILD_TYPE || 'Release' }}
         run: |
           echo "Using CMake preset: ${CMAKE_PRESET}"
-          cmake --preset "${CMAKE_PRESET}" -DGENERATE_PLACEHOLDER_MESHES=${GENERATE_PLACEHOLDER_MESHES} -DUSE_BUNDLED_GLM=${USE_BUNDLED_GLM} -DREQUIRE_MESHES=${REQUIRE_MESHES}
+          cmake --preset "${CMAKE_PRESET}" -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DGENERATE_PLACEHOLDER_MESHES=${GENERATE_PLACEHOLDER_MESHES} -DUSE_BUNDLED_GLM=${USE_BUNDLED_GLM} -DREQUIRE_MESHES=${REQUIRE_MESHES}
 
       - name: Build
         run: cmake --build build -- -j2
