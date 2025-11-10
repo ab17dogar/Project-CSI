@@ -1,6 +1,14 @@
 name: Quick Build (UI)
 
 on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
   workflow_dispatch:
     inputs:
       CMAKE_PRESET:
