@@ -26,12 +26,12 @@ bool mesh::load(string fileName){
 	// Load .obj File
 	bool loadout = loader.LoadFile(fileName);
     if (!loadout)
-	{
-        cout << "Failed to open: " << fileName << endl;
+    {
+        cerr << "Failed to open: " << fileName << endl;
         return false;
     }
     else{
-        cout << "Success opening: " << fileName << endl;
+        cerr << "Success opening: " << fileName << endl;
 
 		for (int i = 0; i < loader.LoadedMeshes.size(); i++)
 		{

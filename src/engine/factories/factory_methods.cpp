@@ -341,17 +341,16 @@ shared_ptr<hittable> LoadMesh(XMLElement * meshElem){
     XMLElement * fileElem = posElem->NextSiblingElement("File");
     string fileName = fileElem->Attribute("name");
 
-    // Resolve mesh file path under assets/ for consistent project layout.
-    // Files are expected at assets/<name> (e.g. assets/bed.obj, assets/bed.mtl).
-    string filePath = string("assets/") + fileName;
-
-    shared_ptr<hittable> pmesh = make_shared<mesh>(filePath, position, scale, rotation, material);
-    
-    shared_ptr<mesh> derived = dynamic_pointer_cast<mesh> (pmesh);
-    if(derived->load(filePath)){
+    // Load mesh using the filename as provided. This expects the file to be
+    // present in the current working directory (or provided as an absolute
+    // or relative path). No automatic "assets/" prefixing is performed.
+    shared_ptr<hittable> pmesh = make_shared<mesh>(fileName, position, scale, rotation, material);
+    shared_ptr<mesh> derived = dynamic_pointer_cast<mesh>(pmesh);
+    if (derived->load(fileName)) {
         return pmesh;
     }
 
+    cerr << "LoadMesh: failed to load mesh file '" << fileName << "'" << endl;
     return shared_ptr<hittable>();
 }
 

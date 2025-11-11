@@ -8,6 +8,7 @@
 #include "engine/sun.h"
 #include "engine/mesh.h"
 #include <unistd.h>
+#include <filesystem>
 
 
 using namespace std;
@@ -26,10 +27,12 @@ color ray_color(const ray& r, int depth);
 int main(int, char**) {
     // Load the scene XML strictly from the assets directory.
     // The project expects all input assets to live under `assets/`.
-    const string path = "assets/objects.xml";
+        const string path = "objects.xml"; // Load the scene XML from the current working directory.
+        // If you run the binary from the build directory, place your
+        // objects.xml and meshes there (e.g. build/objects.xml, build/bed.obj).
     std::ifstream sceneFile(path);
     if (!sceneFile.good()){
-        cerr << "Could not find scene file: " << path << "\nPlease place objects.xml into the assets/ directory." << endl;
+            cerr << "Could not find scene file: " << path << "\nPlease place objects.xml into the current working directory (e.g. build/objects.xml)." << endl;
         return 2;
     }
     pworld = LoadScene(path);
