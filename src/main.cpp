@@ -52,14 +52,24 @@ int main(int, char**) {
     vector<color> bitmap;
     TestBitmap(bitmap);
 
-    // Write output image into the build directory. If the process was started
-    // from the build dir the current working dir will be the build dir already.
-    // Otherwise, write to ./build/image.ppm so the build output stays separate.
-    string outPathCandidates[] = {"image.ppm", "./build/image.ppm"};
-    string outPath = outPathCandidates[0];
-    std::ofstream test(outPath);
-    if (!test.good()) {
-        outPath = outPathCandidates[1];
+    // Decide output location: write into the build directory as build/image.ppm
+    // when running from the project root; when running from the build dir
+    // write to image.ppm (which will be inside build/).
+    #include <unistd.h>
+    #include <libgen.h>
+    char cwdBuf[4096];
+    string outPath;
+    if (getcwd(cwdBuf, sizeof(cwdBuf)) != nullptr) {
+        string cwd(cwdBuf);
+        // If running from the build directory itself, write to image.ppm
+        if (!cwd.empty() && cwd.substr(cwd.find_last_of("/\\") + 1) == "build"){
+            outPath = string("image.ppm");
+        } else {
+            outPath = string("build/image.ppm");
+        }
+    } else {
+        // fallback
+        outPath = string("build/image.ppm");
     }
 
     SaveImage(outPath, bitmap);
