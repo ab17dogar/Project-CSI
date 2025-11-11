@@ -7,60 +7,9 @@ project(${PROJECT_NAME}
 
 set ( CMAKE_CXX_STANDARD 20 )
 
-CONFIGURE_FILE(assets/objects.xml objects.xml COPYONLY)
-
-# Copy optional mesh files only if they exist in the source tree. This avoids
-# failing configuration when some .obj assets are missing (e.g. not checked in).
-set(_MESH_FILES
-    box_stack.obj
-    bed.obj
-    chair.obj
-    cube.obj
-    monkey.obj
-    sphere.obj
-    stool.obj
-    table.obj
-    tree.obj
-)
-
-# Option to require mesh assets. Default: OFF (optional meshes).
-# When ON, CMake will fail configuration if any mesh from _MESH_FILES is missing.
-option(REQUIRE_MESHES "Fail configure if mesh assets are missing" OFF)
-option(GENERATE_PLACEHOLDER_MESHES "When ON, missing mesh files will be auto-generated as minimal .obj placeholders" OFF)
-
-set(_missing_meshes)
-set(_generated_dir "${CMAKE_BINARY_DIR}/generated_meshes")
-foreach(_mesh IN LISTS _MESH_FILES)
-    set(_src "${CMAKE_SOURCE_DIR}/assets/mesh/${_mesh}")
-    if(EXISTS ${_src})
-        message(STATUS "Copying mesh: ${_mesh}")
-        get_filename_component(_name ${_mesh} NAME)
-        configure_file(${CMAKE_SOURCE_DIR}/assets/mesh/${_mesh} ${_name} COPYONLY)
-    else()
-        if(GENERATE_PLACEHOLDER_MESHES)
-            # Ensure generated dir exists
-            file(MAKE_DIRECTORY ${_generated_dir})
-            set(_gen_path "${_generated_dir}/${_mesh}")
-            if(NOT EXISTS ${_gen_path})
-                message(STATUS "Generating placeholder mesh: ${_mesh}")
-                file(WRITE ${_gen_path} "# Minimal placeholder OBJ for ${_mesh}\n")
-                file(APPEND ${_gen_path} "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
-            endif()
-            get_filename_component(_name ${_mesh} NAME)
-            configure_file(${_gen_path} ${_name} COPYONLY)
-        else()
-            if(REQUIRE_MESHES)
-                list(APPEND _missing_meshes ${_mesh})
-            else()
-                message(VERBOSE "Mesh not found, skipping: ${_mesh}")
-            endif()
-        endif()
-    endif()
-endforeach()
-
-if(REQUIRE_MESHES AND _missing_meshes)
-    message(FATAL_ERROR "The following required mesh files are missing in ${CMAKE_SOURCE_DIR}/assets/mesh/:\n  ${_missing_meshes}\nSet REQUIRE_MESHES=OFF or enable GENERATE_PLACEHOLDER_MESHES to configure without these assets.")
-endif()
+## Asset handling removed to simplify configuration.
+## This CMakeLists now focuses on building the project sources only.
+## If you need to install or copy assets, add explicit install/copy rules.
 
 set ( HDR 
         src/3rdParty/tinyxml2/tinyxml2.h
