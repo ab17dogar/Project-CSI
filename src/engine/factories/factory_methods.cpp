@@ -39,16 +39,50 @@ shared_ptr<world> LoadScene(string fileName){
     shared_ptr<world> pworld = make_shared<world>();
 
     XMLNode * itemContainer = doc.FirstChildElement();
+    if(!itemContainer){
+        cerr << "LoadScene: missing root element in " << fileName << endl;
+        return shared_ptr<world>();
+    }
+
     XMLElement * configElem = itemContainer->FirstChildElement("Config");
+    if(!configElem){
+        cerr << "LoadScene: missing <Config> element in " << fileName << endl;
+        return shared_ptr<world>();
+    }
+
     pworld->pconfig = LoadConfig(configElem);
+    if(!pworld->pconfig){
+        cerr << "LoadScene: failed to load <Config> from " << fileName << endl;
+        return shared_ptr<world>();
+    }
 
     XMLElement * cameraElem = configElem->NextSiblingElement("Camera");
+    if(!cameraElem){
+        cerr << "LoadScene: missing <Camera> element in " << fileName << endl;
+        return shared_ptr<world>();
+    }
     pworld->pcamera = LoadCamera(cameraElem, pworld->pconfig->ASPECT_RATIO);
+    if(!pworld->pcamera){
+        cerr << "LoadScene: failed to load <Camera> from " << fileName << endl;
+        return shared_ptr<world>();
+    }
 
     XMLElement * lightsElem = configElem->NextSiblingElement("Lights");
+    if(!lightsElem){
+        cerr << "LoadScene: missing <Lights> element in " << fileName << endl;
+        return shared_ptr<world>();
+    }
     pworld->psun = LoadSun(lightsElem);
+    if(!pworld->psun){
+        cerr << "LoadScene: failed to load <Lights> from " << fileName << endl;
+        return shared_ptr<world>();
+    }
 
     XMLElement * objectsElem = configElem->NextSiblingElement("Objects");
+    if(!objectsElem){
+        cerr << "LoadScene: missing <Objects> element in " << fileName << endl;
+        return shared_ptr<world>();
+    }
     pworld->objects = LoadObjects(objectsElem);
 
     return pworld;
@@ -56,13 +90,37 @@ shared_ptr<world> LoadScene(string fileName){
 
 shared_ptr<config> LoadConfig(XMLElement * configElem){
 
+    if(!configElem){
+        cerr << "LoadConfig: null config element" << endl;
+        return shared_ptr<config>();
+    }
+
     XMLElement * widthElem = configElem->FirstChildElement("Width");
+    if(!widthElem || !widthElem->Attribute("value")){
+        cerr << "LoadConfig: missing <Width value=...>" << endl;
+        return shared_ptr<config>();
+    }
     int width = atoi(widthElem->Attribute("value"));
+
     XMLElement * aspectElem = widthElem->NextSiblingElement("Aspect_ratio");
+    if(!aspectElem || !aspectElem->Attribute("value")){
+        cerr << "LoadConfig: missing <Aspect_ratio value=...>" << endl;
+        return shared_ptr<config>();
+    }
     float aspect_ratio = atof(aspectElem->Attribute("value"));
+
     XMLElement * samplesElem = widthElem->NextSiblingElement("Samples_Per_Pixel");
+    if(!samplesElem || !samplesElem->Attribute("value")){
+        cerr << "LoadConfig: missing <Samples_Per_Pixel value=...>" << endl;
+        return shared_ptr<config>();
+    }
     int samples = atoi(samplesElem->Attribute("value"));
+
     XMLElement * depthElem = widthElem->NextSiblingElement("Max_Depth");
+    if(!depthElem || !depthElem->Attribute("value")){
+        cerr << "LoadConfig: missing <Max_Depth value=...>" << endl;
+        return shared_ptr<config>();
+    }
     int depth = atoi(depthElem->Attribute("value"));
 
     shared_ptr<config> pconfig = make_shared<config>();
@@ -155,13 +213,16 @@ vector< shared_ptr<hittable> > LoadObjects(XMLElement * objectsElem){
     while(item){
         string type = item->Name();
         if(type == "Sphere"){
-            list.push_back(LoadSphere(item));
+            auto obj = LoadSphere(item);
+            if(obj) list.push_back(obj);
         }
         else if(type == "Mesh"){
-            list.push_back(LoadMesh(item));
+            auto obj = LoadMesh(item);
+            if(obj) list.push_back(obj);
         }
         else if(type == "Triangle"){
-            list.push_back(LoadTriangle(item));
+            auto obj = LoadTriangle(item);
+            if(obj) list.push_back(obj);
         }
         
         item = item->NextSiblingElement();
