@@ -7,6 +7,7 @@
 #include "engine/camera.h"
 #include "engine/sun.h"
 #include "engine/mesh.h"
+#include <unistd.h>
 
 
 using namespace std;
@@ -55,8 +56,6 @@ int main(int, char**) {
     // Decide output location: write into the build directory as build/image.ppm
     // when running from the project root; when running from the build dir
     // write to image.ppm (which will be inside build/).
-    #include <unistd.h>
-    #include <libgen.h>
     char cwdBuf[4096];
     string outPath;
     if (getcwd(cwdBuf, sizeof(cwdBuf)) != nullptr) {
