@@ -280,10 +280,13 @@ shared_ptr<hittable> LoadMesh(XMLElement * meshElem){
     XMLElement * fileElem = posElem->NextSiblingElement("File");
     string fileName = fileElem->Attribute("name");
 
-    shared_ptr<hittable> pmesh = make_shared<mesh>(fileName, position, scale, rotation, material);
+    // Resolve mesh file path under assets/mesh/ for consistent project layout.
+    string filePath = string("assets/mesh/") + fileName;
+
+    shared_ptr<hittable> pmesh = make_shared<mesh>(filePath, position, scale, rotation, material);
     
     shared_ptr<mesh> derived = dynamic_pointer_cast<mesh> (pmesh);
-    if(derived->load(fileName)){
+    if(derived->load(filePath)){
         return pmesh;
     }
 

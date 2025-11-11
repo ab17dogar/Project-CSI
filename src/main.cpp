@@ -23,14 +23,46 @@ void TestBitmap(vector<color> & bitmap);
 color ray_color(const ray& r, int depth);
 
 int main(int, char**) {
-    
-    string path = "objects.xml";
+    // Resolve the scene XML from the assets directory.
+    // Try a few sensible relative locations so running from the project root
+    // or from the build directory both work.
+    string candidates[] = {
+        string("assets/objects.xml"),
+        string("../assets/objects.xml"),
+        string("./assets/objects.xml"),
+        string("objects.xml")
+    };
+
+    string path;
+    for (const auto &c : candidates) {
+        std::ifstream f(c);
+        if (f.good()) { path = c; break; }
+    }
+    if (path.empty()) {
+        cerr << "Could not find objects.xml in assets/ (tried assets/objects.xml and ../assets/objects.xml)." << endl;
+        return 2;
+    }
 
     pworld = LoadScene(path);
+    if (!pworld) {
+        cerr << "Failed to load scene file: " << path << endl;
+        return 3;
+    }
 
     vector<color> bitmap;
     TestBitmap(bitmap);
-    SaveImage("image.ppm", bitmap);
+
+    // Write output image into the build directory. If the process was started
+    // from the build dir the current working dir will be the build dir already.
+    // Otherwise, write to ./build/image.ppm so the build output stays separate.
+    string outPathCandidates[] = {"image.ppm", "./build/image.ppm"};
+    string outPath = outPathCandidates[0];
+    std::ofstream test(outPath);
+    if (!test.good()) {
+        outPath = outPathCandidates[1];
+    }
+
+    SaveImage(outPath, bitmap);
 
     return 0;
 }
