@@ -35,7 +35,3 @@
 .vscode
 .DS_Store
 build/
-
-# Keep build/ ignored but allow OBJ/MTL assets in assets/ to be tracked
-!assets/*.obj
-!assets/*.mtl

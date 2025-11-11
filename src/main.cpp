@@ -24,26 +24,14 @@ void TestBitmap(vector<color> & bitmap);
 color ray_color(const ray& r, int depth);
 
 int main(int, char**) {
-    // Resolve the scene XML from the assets directory.
-    // Try a few sensible relative locations so running from the project root
-    // or from the build directory both work.
-    string candidates[] = {
-        string("assets/objects.xml"),
-        string("../assets/objects.xml"),
-        string("./assets/objects.xml"),
-        string("objects.xml")
-    };
-
-    string path;
-    for (const auto &c : candidates) {
-        std::ifstream f(c);
-        if (f.good()) { path = c; break; }
-    }
-    if (path.empty()) {
-        cerr << "Could not find objects.xml in assets/ (tried assets/objects.xml and ../assets/objects.xml)." << endl;
+    // Load the scene XML strictly from the assets directory.
+    // The project expects all input assets to live under `assets/`.
+    const string path = "assets/objects.xml";
+    std::ifstream sceneFile(path);
+    if (!sceneFile.good()){
+        cerr << "Could not find scene file: " << path << "\nPlease place objects.xml into the assets/ directory." << endl;
         return 2;
     }
-
     pworld = LoadScene(path);
     if (!pworld) {
         cerr << "Failed to load scene file: " << path << endl;
