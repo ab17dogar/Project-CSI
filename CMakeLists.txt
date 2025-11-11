@@ -123,6 +123,11 @@ add_executable(${PROJECT_NAME}
                 ${SRC} 
             )
 
+# Some GLM features in gtx/* are experimental and require this define
+# to be present before including those headers. Add it for the target so
+# system or bundled GLM usage works without modifying third-party headers.
+target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_ENABLE_EXPERIMENTAL)
+
 # Link libraries
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
