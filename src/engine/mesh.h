@@ -13,6 +13,8 @@ class mesh : public hittable {
         mesh(std::string file, vec3 p, vec3 s, vec3 r, std::shared_ptr<material> mat);
         bool load(std::string fileName);
         virtual bool hit(const ray& r, double t_min, double t_max, hit_record& rec) const override;
+        // Return the number of triangles loaded for diagnostics
+        int getTriangleCount() const;
 
     private:
         std::vector<triangle> triangleList;

@@ -11,10 +11,20 @@
 #include "../lambertian.h"
 #include "../metal.h"
 #include "../emissive.h"
+#include <chrono>
+#include <filesystem>
+#include "../../util/logging.h"
 
 using namespace std;
 using namespace tinyxml2;
 
+// Definitions for diagnostics lists declared in the header
+std::vector<std::string> g_attempted_meshes;
+std::vector<std::string> g_loaded_meshes;
+// Per-mesh load statistics (name, load time in ms, triangle count)
+std::vector<MeshLoadInfo> g_mesh_stats;
+// Scene directory for resolving relative mesh paths
+std::string g_scene_directory;
 shared_ptr<config> LoadConfig(XMLElement * configElem);
 shared_ptr<camera> LoadCamera(XMLElement * cameraElem, float aspect_ratio);
 shared_ptr<sun> LoadSun(XMLElement * lightsElem);
@@ -38,6 +48,15 @@ shared_ptr<world> LoadScene(string fileName){
     
     shared_ptr<world> pworld = make_shared<world>();
 
+    // Record scene directory for resolving relative mesh filenames
+    try{
+        std::filesystem::path scenePath(fileName);
+        if (scenePath.has_parent_path()) g_scene_directory = scenePath.parent_path().string();
+        else g_scene_directory.clear();
+    } catch(...){
+        g_scene_directory.clear();
+    }
+
     XMLNode * itemContainer = doc.FirstChildElement();
     if(!itemContainer){
         cerr << "LoadScene: missing root element in " << fileName << endl;
@@ -45,6 +64,8 @@ shared_ptr<world> LoadScene(string fileName){
     }
 
     XMLElement * configElem = itemContainer->FirstChildElement("Config");
+    // Record the attempt for diagnostics
+    g_attempted_meshes.push_back(fileName);
     if(!configElem){
         cerr << "LoadScene: missing <Config> element in " << fileName << endl;
         return shared_ptr<world>();
@@ -52,6 +73,7 @@ shared_ptr<world> LoadScene(string fileName){
 
     pworld->pconfig = LoadConfig(configElem);
     if(!pworld->pconfig){
+        g_loaded_meshes.push_back(fileName);
         cerr << "LoadScene: failed to load <Config> from " << fileName << endl;
         return shared_ptr<world>();
     }
@@ -340,17 +362,89 @@ shared_ptr<hittable> LoadMesh(XMLElement * meshElem){
 
     XMLElement * fileElem = posElem->NextSiblingElement("File");
     string fileName = fileElem->Attribute("name");
+    // We'll try a few candidate paths in order. Record each attempt for diagnostics.
+    std::vector<std::string> candidates;
+    candidates.push_back(fileName); // as provided
+    // if scene directory known, try relative to it
+    if (!g_scene_directory.empty()){
+        std::filesystem::path p = std::filesystem::path(g_scene_directory) / fileName;
+        candidates.push_back(p.string());
+    }
+    // try assets/ prefix as a common fallback
+    candidates.push_back(std::string("assets/") + fileName);
 
-    // Load mesh using the filename as provided. This expects the file to be
-    // present in the current working directory (or provided as an absolute
-    // or relative path). No automatic "assets/" prefixing is performed.
     shared_ptr<hittable> pmesh = make_shared<mesh>(fileName, position, scale, rotation, material);
     shared_ptr<mesh> derived = dynamic_pointer_cast<mesh>(pmesh);
-    if (derived->load(fileName)) {
-        return pmesh;
+
+    // When trying multiple candidates, suppress mesh's own per-file prints so
+    // we only show final results from the scene loader.
+    bool prev_suppress = g_suppress_mesh_messages.load();
+    g_suppress_mesh_messages = true;
+    for (auto &candidate : candidates){
+        // record attempt
+        g_attempted_meshes.push_back(candidate);
+        auto t0 = std::chrono::high_resolution_clock::now();
+        if (derived->load(candidate)){
+            auto t1 = std::chrono::high_resolution_clock::now();
+            double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            g_loaded_meshes.push_back(candidate);
+            MeshLoadInfo info;
+            info.name = candidate;
+            info.load_ms = ms;
+            info.triangles = derived->getTriangleCount();
+            g_mesh_stats.push_back(info);
+            return pmesh;
+        }
+    }
+    g_suppress_mesh_messages = prev_suppress;
+
+    // If the simple candidates failed, attempt a recursive search in a few
+    // likely directories for a matching basename (this helps when the .obj
+    // lives somewhere else in the tree). Stop after first match.
+    std::string basename = std::filesystem::path(fileName).filename().string();
+    std::vector<std::filesystem::path> search_roots;
+    if (!g_scene_directory.empty()) search_roots.emplace_back(g_scene_directory);
+    search_roots.emplace_back(std::filesystem::current_path());
+    search_roots.emplace_back("assets");
+    search_roots.emplace_back("build");
+    search_roots.emplace_back("mesh");
+
+    for (auto &root : search_roots){
+        try{
+            if (!std::filesystem::exists(root)) continue;
+            int seen = 0;
+            for (auto &ent : std::filesystem::recursive_directory_iterator(root)){
+                if (!ent.is_regular_file()) continue;
+                seen++;
+                if (seen > 5000) break; // don't scan forever in very large trees
+                if (ent.path().filename() == basename){
+                    std::string found = ent.path().string();
+                    g_attempted_meshes.push_back(found);
+                    auto t0 = std::chrono::high_resolution_clock::now();
+                    if (derived->load(found)){
+                        auto t1 = std::chrono::high_resolution_clock::now();
+                        double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+                        g_loaded_meshes.push_back(found);
+                        MeshLoadInfo info;
+                        info.name = found;
+                        info.load_ms = ms;
+                        info.triangles = derived->getTriangleCount();
+                        g_mesh_stats.push_back(info);
+                        return pmesh;
+                    }
+                    // if failed, continue searching
+                }
+            }
+        }catch(...){}
     }
 
-    cerr << "LoadMesh: failed to load mesh file '" << fileName << "'" << endl;
+    cerr << "LoadMesh: failed to load mesh file '" << fileName << "' (tried ";
+    for (size_t i = 0; i < candidates.size(); ++i){
+        if (i) cerr << ", ";
+        cerr << candidates[i];
+    }
+    cerr << ") and searched common directories" << endl;
+
     return shared_ptr<hittable>();
 }
 

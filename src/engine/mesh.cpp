@@ -7,6 +7,7 @@
 
 #include "mesh.h"
 #include "../3rdParty/ObjLoader/OBJ_Loader.h"
+#include "../util/logging.h"
 
 using namespace std;
 //using namespace objl;
@@ -19,6 +20,10 @@ mesh::mesh(string file, vec3 p, vec3 s, vec3 r, shared_ptr<material> mat){
     fileName = file;
 }
 
+int mesh::getTriangleCount() const {
+    return static_cast<int>(triangleList.size());
+}
+
 bool mesh::load(string fileName){
 
     objl::Loader loader;
@@ -27,11 +32,11 @@ bool mesh::load(string fileName){
 	bool loadout = loader.LoadFile(fileName);
     if (!loadout)
     {
-        cerr << "Failed to open: " << fileName << endl;
+        if (!g_quiet.load() && !g_suppress_mesh_messages.load()) cerr << "Failed to open: " << fileName << endl;
         return false;
     }
     else{
-        cerr << "Success opening: " << fileName << endl;
+        if (!g_quiet.load() && !g_suppress_mesh_messages.load()) cerr << "Success opening: " << fileName << endl;
 
 		for (int i = 0; i < loader.LoadedMeshes.size(); i++)
 		{

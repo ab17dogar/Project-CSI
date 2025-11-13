@@ -49,6 +49,7 @@ set ( SRC
         src/engine/factories/factory_methods.cpp
         src/util/vec3.cpp
         src/main.cpp
+        src/3rdParty/stb_image_write.cpp
     )
 
 ## Try to find system-installed GLM; optionally build bundled GLM when requested
@@ -66,6 +67,9 @@ else()
     endif()
 endif()
 
+# PNG support: try to find libpng and link it for real PNG output
+find_package(PNG REQUIRED)
+
 # Executable
 add_executable(${PROJECT_NAME}
                 ${HDR} 
@@ -81,6 +85,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_ENABLE_EXPERIMENTAL)
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         glm::glm
+    PNG::PNG
 )
 
 # Install rules: binary + assets (source assets directory)
