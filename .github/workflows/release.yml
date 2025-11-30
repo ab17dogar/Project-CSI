@@ -6,6 +6,46 @@ on:
       - 'v*'
 
 jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libglm-dev zip
+
+      - name: Configure
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build build --config Release -- -j2
+
+      - name: Install to staging
+        run: cmake --build build --target install-staging
+
+      - name: Create artifact zip
+        run: |
+          cd build/staging
+          zip -r ../../raytracer-release.zip .
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: raytracer-release.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
