@@ -19,6 +19,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake build-essential libglm-dev
 
+      - name: Cache CMake build
+        uses: actions/cache@v3
+        with:
+          path: |
+            build
+            ~/.cache/ccache
+          key: ${{ runner.os }}-asan-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-asan-
+
       - name: Configure (ASAN)
         run: |
           cmake -S . -B build \
