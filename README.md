@@ -1,5 +1,12 @@
-# fyp_raytracer
+# Project CSI (Raytracer)
 FYP: Raytracing engine as backend
+
+Repository has been migrated to the new GitHub location:
+
+- New repo: https://github.com/ab17dogar/Project-CSI
+- Previous repo (reference): https://github.com/abdogar17/raytracer
+
+Primary remote `origin` now points to `Project-CSI`.
 
 [![CI](https://github.com/fyp/raytracer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fyp/raytracer/actions/workflows/ci.yml)
 [![ASAN](https://github.com/fyp/raytracer/actions/workflows/ci.yml/badge.svg?query=workflow%3Aasan)](https://github.com/fyp/raytracer/actions/workflows/ci.yml)
