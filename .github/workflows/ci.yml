@@ -2,6 +2,35 @@ name: CI
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libglm-dev
+
+      - name: Configure (CMake preset)
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build build -- -j2
+
+      - name: Run (smoke test)
+        run: ./build/Raytracer || true
+name: CI
+
+on:
+  push:
     # Run automatically when commits are pushed to the main branch (e.g. merges)
     branches:
       - main
