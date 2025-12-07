@@ -17,7 +17,7 @@ sudo apt-get install qt6-base-dev qt6-tools-dev qtcreator
 ```
 
 **Windows:**
-Download Qt from https://www.qt.io/download and install Qt 6.x
+Download Qt from https://www.qt.io/download-open-source and install Qt 6.x
 
 ### Step 2: Create Basic UI Structure (30 minutes)
 
