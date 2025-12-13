@@ -1,134 +1,113 @@
 
 #include "triangle.h"
+#include "aabb.h"
+#include <cmath>
+#include <iostream>
 
-triangle::triangle(const vec3 & v0, const vec3 & v1, const vec3 & v2, shared_ptr<material> mat_ptr){
-    this->v0 = v0;
-    this->v1 = v1;
-    this->v2 = v2;
-    this->mat_ptr = mat_ptr;
-        // Check for degenerate triangles (zero area) to prevent issues in intersection tests
-        vec3 edge1 = v1 - v0;
-        vec3 edge2 = v2 - v0;
-        vec3 normal = cross(edge1, edge2);
-        float areaSquared = normal.length();
-        const float threshold = 1e-8f;
-        if (areaSquared < threshold) {
-            // Mark triangle as degenerate
-            this->degenerate = true;
-            std::cerr << "Warning: created degenerate triangle (area ~ 0). Skipping intersections." << std::endl;
-        }
+// Constructor without UVs (backward compatible)
+triangle::triangle(const vec3 &v0, const vec3 &v1, const vec3 &v2,
+                   shared_ptr<material> mat_ptr)
+    : v0(v0), v1(v1), v2(v2), mat_ptr(mat_ptr), has_uvs(false) {
+  // Check for degenerate triangles (zero area)
+  vec3 edge1 = v1 - v0;
+  vec3 edge2 = v2 - v0;
+  vec3 normal = cross(edge1, edge2);
+  float areaSquared = normal.length();
+  const float threshold = 1e-8f;
+  if (areaSquared < threshold) {
+    degenerate = true;
+    std::cerr << "Warning: created degenerate triangle (area ~ 0)."
+              << std::endl;
+  }
 }
 
-bool triangle::hit(const ray& r, double t_min, double t_max, hit_record& rec) const {
-    
-    // compute plane's normal
-    vec3 v0v1 = v1 - v0; 
-    vec3 v0v2 = v2 - v0; 
-    // no need to normalize
-    vec3 N = cross(v0v1, v0v2);  //N 
-    float area2 = N.length(); 
-
-    // Step 1: finding P
- 
-    // check if ray and plane are parallel ?
-    float NdotRayDirection = dot(N, r.dir);
-    if (fabs(NdotRayDirection) < EPSILON)  //almost 0 
-        return false;  //they are parallel so they don't intersect !
-
-    // compute d parameter using equation 2
-    float d = -dot(N, v0);
- 
-    // compute t (equation 3)
-    double t = -(dot(N, r.orig) + d) / NdotRayDirection; 
- 
-    // check if the triangle is in behind the ray
-    if (t < 0) return false;  //the triangle is behind 
- 
-    // compute the intersection point using equation 1
-    vec3 P = r.orig + t * r.dir; 
-
-    // Step 2: inside-outside test
-    vec3 C;  //vector perpendicular to triangle's plane 
- 
-    // edge 0
-    vec3 edge0 = v1 - v0; 
-        // Skip intersection tests for degenerate triangles
-        if (this->degenerate) return false;
-    vec3 vp0 = P - v0; 
-    C = cross(edge0,vp0); 
-    if (dot(N,C) < 0) return false;  //P is on the right side 
- 
-    // edge 1
-    vec3 edge1 = v2 - v1; 
-    vec3 vp1 = P - v1; 
-    C = cross(edge1,vp1); 
-    if (dot(N,C) < 0)  return false;  //P is on the right side 
- 
-    // edge 2
-    vec3 edge2 = v0 - v2; 
-    vec3 vp2 = P - v2; 
-    C = cross(edge2,vp2); 
-    if (dot(N,C) < 0) return false;  //P is on the right side; 
- 
-    rec.p = P;
-    rec.t = t;
-    rec.normal = N;
-    rec.mat_ptr = mat_ptr;
-
-    return true;  //this ray hits the triangle 
+// Constructor with UVs for texture mapping
+triangle::triangle(const vec3 &v0, const vec3 &v1, const vec3 &v2,
+                   const vec3 &uv0, const vec3 &uv1, const vec3 &uv2,
+                   shared_ptr<material> mat_ptr)
+    : v0(v0), v1(v1), v2(v2), uv0(uv0), uv1(uv1), uv2(uv2), has_uvs(true),
+      mat_ptr(mat_ptr), degenerate(false) {
+  // Check for degenerate triangles
+  vec3 edge1 = v1 - v0;
+  vec3 edge2 = v2 - v0;
+  vec3 normal = cross(edge1, edge2);
+  float areaSquared = normal.length();
+  const float threshold = 1e-8f;
+  if (areaSquared < threshold) {
+    degenerate = true;
+    std::cerr << "Warning: created degenerate triangle (area ~ 0)."
+              << std::endl;
+  }
 }
 
-// bool rayTriangleIntersect( 
-//     const Vec3f &orig, const Vec3f &dir, 
-//     const Vec3f &v0, const Vec3f &v1, const Vec3f &v2, 
-//     float &t) 
-// { 
-//     // // compute plane's normal
-//     // Vec3f v0v1 = v1 - v0; 
-//     // Vec3f v0v2 = v2 - v0; 
-//     // // no need to normalize
-//     // Vec3f N = v0v1.crossProduct(v0v2);  //N 
-//     // float area2 = N.length(); 
- 
-//     // // Step 1: finding P
- 
-//     // // check if ray and plane are parallel ?
-//     // float NdotRayDirection = N.dotProduct(dir); 
-//     // if (fabs(NdotRayDirection) < kEpsilon)  //almost 0 
-//     //     return false;  //they are parallel so they don't intersect ! 
- 
-//     // // compute d parameter using equation 2
-//     // float d = -N.dotProduct(v0); 
- 
-//     // // compute t (equation 3)
-//     // t = -(N.dotProduct(orig) + d) / NdotRayDirection; 
- 
-//     // // check if the triangle is in behind the ray
-//     // if (t < 0) return false;  //the triangle is behind 
- 
-//     // // compute the intersection point using equation 1
-//     // Vec3f P = orig + t * dir; 
- 
-//     // // Step 2: inside-outside test
-//     // Vec3f C;  //vector perpendicular to triangle's plane 
- 
-//     // // edge 0
-//     // Vec3f edge0 = v1 - v0; 
-//     // Vec3f vp0 = P - v0; 
-//     // C = edge0.crossProduct(vp0); 
-//     // if (N.dotProduct(C) < 0) return false;  //P is on the right side 
- 
-//     // // edge 1
-//     // Vec3f edge1 = v2 - v1; 
-//     // Vec3f vp1 = P - v1; 
-//     // C = edge1.crossProduct(vp1); 
-//     // if (N.dotProduct(C) < 0)  return false;  //P is on the right side 
- 
-//     // // edge 2
-//     // Vec3f edge2 = v0 - v2; 
-//     // Vec3f vp2 = P - v2; 
-//     // C = edge2.crossProduct(vp2); 
-//     // if (N.dotProduct(C) < 0) return false;  //P is on the right side; 
- 
-//     // return true;  //this ray hits the triangle 
-// } 
+bool triangle::hit(const ray &r, double t_min, double t_max,
+                   hit_record &rec) const {
+  if (degenerate)
+    return false;
+
+  // Möller–Trumbore intersection algorithm with barycentric coordinates
+  vec3 edge1 = v1 - v0;
+  vec3 edge2 = v2 - v0;
+  vec3 h = cross(r.dir, edge2);
+  double a = dot(edge1, h);
+
+  if (fabs(a) < EPSILON)
+    return false; // Ray parallel to triangle
+
+  double f = 1.0 / a;
+  vec3 s = r.orig - v0;
+  double u_bary = f * dot(s, h);
+
+  if (u_bary < 0.0 || u_bary > 1.0)
+    return false;
+
+  vec3 q = cross(s, edge1);
+  double v_bary = f * dot(r.dir, q);
+
+  if (v_bary < 0.0 || u_bary + v_bary > 1.0)
+    return false;
+
+  double t = f * dot(edge2, q);
+
+  if (t < t_min || t > t_max)
+    return false;
+
+  // Valid hit - compute barycentric coordinate w
+  double w_bary = 1.0 - u_bary - v_bary;
+
+  rec.t = t;
+  rec.p = r.orig + t * r.dir;
+
+  // Compute normal
+  vec3 outward_normal = unit_vector(cross(edge1, edge2));
+  rec.set_face_normal(r, outward_normal);
+  rec.mat_ptr = mat_ptr;
+
+  // Interpolate UV coordinates using barycentric coordinates
+  if (has_uvs) {
+    // UV = w*uv0 + u*uv1 + v*uv2
+    rec.u = w_bary * uv0.x() + u_bary * uv1.x() + v_bary * uv2.x();
+    rec.v = w_bary * uv0.y() + u_bary * uv1.y() + v_bary * uv2.y();
+  } else {
+    // Default UVs based on barycentric coordinates
+    rec.u = u_bary;
+    rec.v = v_bary;
+  }
+
+  return true;
+}
+
+bool triangle::bounding_box(aabb &output_box) const {
+  const double padding = 0.0001;
+
+  point3 min_point(fmin(fmin(v0.x(), v1.x()), v2.x()) - padding,
+                   fmin(fmin(v0.y(), v1.y()), v2.y()) - padding,
+                   fmin(fmin(v0.z(), v1.z()), v2.z()) - padding);
+
+  point3 max_point(fmax(fmax(v0.x(), v1.x()), v2.x()) + padding,
+                   fmax(fmax(v0.y(), v1.y()), v2.y()) + padding,
+                   fmax(fmax(v0.z(), v1.z()), v2.z()) + padding);
+
+  output_box = aabb(min_point, max_point);
+  return true;
+}

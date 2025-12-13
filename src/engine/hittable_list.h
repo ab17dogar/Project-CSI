@@ -2,6 +2,7 @@
 #define HITTABLE_LIST_H
 
 #include "hittable.h"
+#include "aabb.h"
 
 #include <memory>
 #include <vector>
@@ -18,6 +19,7 @@ class hittable_list : public hittable {
         void add(shared_ptr<hittable> object) { objects.push_back(object); }
 
         virtual bool hit(const ray& r, double t_min, double t_max, hit_record& rec) const override;
+        virtual bool bounding_box(aabb& output_box) const override;
 
     public:
         std::vector<shared_ptr<hittable>> objects;

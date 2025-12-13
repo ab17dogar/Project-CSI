@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <iomanip>
 #include "defs.h"
 #include "engine/factories/factory_methods.h"
 #include "engine/world.h"
@@ -8,6 +9,7 @@
 #include "engine/camera.h"
 #include "engine/sun.h"
 #include "engine/mesh.h"
+#include "engine/render_runner.h"
 #include <unistd.h>
 #include <filesystem>
 #include <thread>
@@ -16,13 +18,70 @@
 #include <mutex>
 #include <random>
 #include <chrono>
+#include <system_error>
 
 // stb image write (minimal wrapper header)
 #include "3rdParty/stb_image_write.h"
 #include "util/logging.h"
+#include "render_presets.h"
 
 
 using namespace std;
+
+namespace {
+
+std::filesystem::path LocateAssetsRoot()
+{
+    namespace fs = std::filesystem;
+    fs::path current = fs::current_path();
+    for (int i = 0; i < 6; ++i) {
+        fs::path candidate = current / "assets";
+        std::error_code ec;
+        if (fs::exists(candidate, ec) && fs::is_directory(candidate, ec)) {
+            return candidate;
+        }
+        if (!current.has_parent_path()) {
+            break;
+        }
+        current = current.parent_path();
+    }
+    return {};
+}
+
+std::string ResolveScenePath(const std::string &input)
+{
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    const fs::path provided(input);
+
+    // First check assets/ directory as the primary location
+    const fs::path assetsRoot = LocateAssetsRoot();
+    if (!assetsRoot.empty()) {
+        candidates.push_back(assetsRoot / provided);
+    }
+
+    if (provided.is_absolute()) {
+        candidates.push_back(provided);
+    } else {
+        candidates.push_back(fs::current_path() / provided);
+        if (auto parent = fs::current_path().parent_path(); !parent.empty()) {
+            candidates.push_back(parent / provided);
+        }
+    }
+
+    for (const auto &candidate : candidates) {
+        if (candidate.empty()) {
+            continue;
+        }
+        std::error_code ec;
+        if (fs::exists(candidate, ec) && fs::is_regular_file(candidate, ec)) {
+            return candidate.string();
+        }
+    }
+    return {};
+}
+
+} // namespace
 
 // Hittable List aka Scene:
 hittable_list scene;
@@ -30,16 +89,10 @@ hittable_list scene;
 shared_ptr<world> pworld;
 
 
-void SaveImage(string fileName, const vector<color> & bitmap);
-void TestBitmap(vector<color> & bitmap, unsigned int threads, int tile_size, bool tile_debug);
+void SaveImage(world &sceneWorld, const string &fileName, const vector<color> & bitmap);
 //int testObjLoader();
-color ray_color(const ray& r, int depth);
 
-// Define logging flags
-std::atomic<bool> g_quiet{false};
-std::atomic<bool> g_verbose{false};
-// Control to suppress per-file mesh open/failed messages during multi-path attempts
-std::atomic<bool> g_suppress_mesh_messages{false};
+// Logging flags defined in util/logging.cpp
 
 int main(int argc, char** argv) {
     // Default CLI-controlled values
@@ -50,6 +103,8 @@ int main(int argc, char** argv) {
     bool tile_debug = false;
     int widthOverride = -1;
     int samplesOverride = -1;
+    bool useBVH = false;
+    const Raytracer::presets::RenderPresetDefinition *presetDefinition = nullptr;
 
     // Simple argv parser
     for (int i = 1; i < argc; ++i) {
@@ -57,12 +112,26 @@ int main(int argc, char** argv) {
         if (a == "--scene" && i + 1 < argc) { scenePath = argv[++i]; }
         else if (a == "--out" && i + 1 < argc) { outPathFlag = argv[++i]; }
         else if (a == "--threads" && i + 1 < argc) { threads = (unsigned int)atoi(argv[++i]); }
-    else if (a == "--tile-size" && i + 1 < argc) { tile_size = atoi(argv[++i]); }
-    else if (a == "--tile-debug") { tile_debug = true; }
+        else if (a == "--tile-size" && i + 1 < argc) { tile_size = atoi(argv[++i]); }
+        else if (a == "--tile-debug") { tile_debug = true; }
         else if (a == "--width" && i + 1 < argc) { widthOverride = atoi(argv[++i]); }
         else if (a == "--samples" && i + 1 < argc) { samplesOverride = atoi(argv[++i]); }
+        else if (a == "--bvh") { useBVH = true; }
+        else if (a == "--linear") { useBVH = false; }
+        else if (a == "--preset" && i + 1 < argc) {
+            const std::string presetName = argv[++i];
+            presetDefinition = Raytracer::presets::findPreset(presetName);
+            if (!presetDefinition) {
+                cerr << "Unknown preset '" << presetName << "'. Valid presets:";
+                for (const auto &definition : Raytracer::presets::kRenderPresets) {
+                    cerr << ' ' << definition.name;
+                }
+                cerr << endl;
+                return 4;
+            }
+        }
         else if (a == "-h" || a == "--help") {
-            cout << "Usage: Raytracer [--scene <file>] [--out <file>] [--threads N] [--width W] [--samples S]" << endl;
+            cout << "Usage: Raytracer [--scene <file>] [--out <file>] [--threads N] [--preset NAME] [--width W] [--samples S] [--bvh|--linear]" << endl;
             return 0;
         }
         else if (a == "--quiet") { g_quiet = true; }
@@ -70,15 +139,31 @@ int main(int argc, char** argv) {
     }
 
     // Load scene file from current working directory (or as provided)
-    std::ifstream sceneFile(scenePath);
-    if (!sceneFile.good()){
+    const std::string resolvedScenePath = ResolveScenePath(scenePath);
+    if (resolvedScenePath.empty()) {
         cerr << "Could not find scene file: " << scenePath << "\nPlease provide --scene <path> or place objects.xml in the working directory." << endl;
         return 2;
     }
-    pworld = LoadScene(scenePath);
+
+    std::ifstream sceneFile(resolvedScenePath);
+    if (!sceneFile.good()){
+        cerr << "Could not open scene file: " << resolvedScenePath << endl;
+        return 2;
+    }
+    sceneFile.close();
+
+    pworld = LoadScene(resolvedScenePath);
     if (!pworld) {
-        cerr << "Failed to load scene file: " << scenePath << endl;
+        cerr << "Failed to load scene file: " << resolvedScenePath << endl;
         return 3;
+    }
+
+    // Apply preset if provided before per-value overrides
+    if (presetDefinition) {
+        pworld->pconfig->IMAGE_WIDTH = presetDefinition->width;
+        pworld->pconfig->IMAGE_HEIGHT = presetDefinition->height;
+        pworld->pconfig->SAMPLES_PER_PIXEL = presetDefinition->samples;
+        pworld->pconfig->ASPECT_RATIO = static_cast<double>(presetDefinition->width) / static_cast<double>(presetDefinition->height);
     }
 
     // Apply CLI overrides if provided
@@ -88,6 +173,11 @@ int main(int argc, char** argv) {
     }
     if (samplesOverride > 0) {
         pworld->pconfig->SAMPLES_PER_PIXEL = samplesOverride;
+    }
+    
+    // Apply BVH acceleration if requested
+    if (useBVH) {
+        pworld->pconfig->acceleration = AccelerationMethod::BVH;
     }
 
     vector<color> bitmap;
@@ -111,11 +201,15 @@ int main(int argc, char** argv) {
 
     // Startup summary (stderr) so it doesn't mix with progress output
     if (!g_quiet.load()){
-        cerr << "Scene: " << scenePath << "\n";
+        cerr << "Scene: " << resolvedScenePath << "\n";
         cerr << "Output: " << outPath << "\n";
         cerr << "Threads: " << threads << "\n";
         cerr << "Image size: " << pworld->pconfig->IMAGE_WIDTH << "x" << pworld->pconfig->IMAGE_HEIGHT << "\n";
         cerr << "Samples: " << pworld->pconfig->SAMPLES_PER_PIXEL << "\n";
+        cerr << "Acceleration: " << (useBVH ? "BVH" : "Linear") << "\n";
+        if (presetDefinition) {
+            cerr << "Preset: " << presetDefinition->name << "\n";
+        }
         // Mesh diagnostics
         if (!g_attempted_meshes.empty()){
             cerr << "Attempted meshes:";
@@ -139,143 +233,31 @@ int main(int argc, char** argv) {
     if (tile_size <= 0) tile_size = 16;
     if (tile_size > pworld->GetImageWidth()) tile_size = pworld->GetImageWidth();
 
-    TestBitmap(bitmap, threads, tile_size, tile_debug);
+    // Time the render
+    auto renderStart = std::chrono::high_resolution_clock::now();
+    
+    render::RenderSceneToBitmap(*pworld, bitmap, threads, tile_size, tile_debug);
+    
+    auto renderEnd = std::chrono::high_resolution_clock::now();
+    double renderTimeSeconds = std::chrono::duration<double>(renderEnd - renderStart).count();
+    
+    // Print render time
+    if (!g_quiet.load()) {
+        cerr << "\n=== Render Complete ===\n";
+        cerr << "Total render time: " << std::fixed << std::setprecision(2) << renderTimeSeconds << " seconds\n";
+        cerr << "Acceleration method: " << (useBVH ? "BVH" : "Linear") << "\n";
+    }
 
-    SaveImage(outPath, bitmap);
+    SaveImage(*pworld, outPath, bitmap);
 
     return 0;
 }
 
 
-void TestBitmap(vector<color> & bitmap, unsigned int threads, int tile_size, bool tile_debug){
-    int W = pworld->GetImageWidth();
-    int H = pworld->GetImageHeight();
-    int samples = pworld->GetSamplesPerPixel();
-    shared_ptr<camera> pcamera = pworld->pcamera;
-
-    // Pre-size the bitmap so threads can write safely to indices without reallocation
-    bitmap.clear();
-    bitmap.resize(W * H);
-
-    int TILE_SIZE = tile_size; // tile width/height (from CLI)
-
-    // Per-tile statistics
-    struct TileStat { int x0, y0, w, h; long long us; };
-    std::vector<TileStat> tile_stats;
-    std::mutex tile_stats_mtx;
-    std::atomic<long long> total_tile_time_us{0};
-
-    // Build tile list
-    struct Tile { int x0, y0, w, h; };
-    std::vector<Tile> tiles;
-    for (int y = 0; y < H; y += TILE_SIZE){
-        for (int x = 0; x < W; x += TILE_SIZE){
-            int w = std::min(TILE_SIZE, W - x);
-            int h = std::min(TILE_SIZE, H - y);
-            tiles.push_back({x, y, w, h});
-        }
-    }
-
-    std::atomic<size_t> next_tile{0};
-    std::atomic<int> tiles_done{0};
-    size_t total_tiles = tiles.size();
-    std::mutex print_mtx;
-
-    auto worker = [&](unsigned int thread_index){
-        // Per-thread RNG
-        std::mt19937 gen(static_cast<unsigned int>(std::hash<std::thread::id>{}(std::this_thread::get_id()) ^ (unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count()));
-        std::uniform_real_distribution<double> dist(0.0, 1.0);
-
-        while(true){
-            size_t ti = next_tile.fetch_add(1);
-            if (ti >= total_tiles) break;
-            Tile t = tiles[ti];
-
-            auto tile_t0 = std::chrono::high_resolution_clock::now();
-
-            for (int yy = t.y0; yy < t.y0 + t.h; ++yy){
-                for (int xx = t.x0; xx < t.x0 + t.w; ++xx){
-                    color pixel_color(0,0,0);
-                    for (int s = 0; s < samples; ++s){
-                        double u = (xx + dist(gen)) / (W - 1);
-                        double v = (yy + dist(gen)) / (H - 1);
-                        ray r = pcamera->get_ray(u, v);
-                        pixel_color += ray_color(r, pworld->GetMaxDepth());
-                    }
-                    // Keep the original program's row ordering: the single-threaded
-                    // version pushed scanlines from top to bottom into the bitmap,
-                    // so bitmap[0] corresponds to the top row. To preserve the same
-                    // orientation, store into (H-1-yy) when yy is the image-row
-                    // index with 0==bottom.
-                    bitmap[(H - 1 - yy) * W + xx] = pixel_color;
-                }
-            }
-
-            auto tile_t1 = std::chrono::high_resolution_clock::now();
-            long long us = std::chrono::duration_cast<std::chrono::microseconds>(tile_t1 - tile_t0).count();
-            total_tile_time_us.fetch_add(us);
-            {
-                std::lock_guard<std::mutex> lk(tile_stats_mtx);
-                tile_stats.push_back({t.x0, t.y0, t.w, t.h, us});
-            }
-
-            int done = ++tiles_done;
-            if (!g_quiet.load()){
-                double avg_us = done ? (double)total_tile_time_us.load() / (double)done : 0.0;
-                size_t remaining = (total_tiles > (size_t)done) ? (total_tiles - (size_t)done) : 0;
-                double est_remaining_ms = (avg_us * remaining) / 1000.0;
-                std::lock_guard<std::mutex> lk(print_mtx);
-                std::cerr << "\rTiles remaining: " << remaining << " | ETA: " << (est_remaining_ms/1000.0) << " s" << std::flush;
-            }
-        }
-    };
-
-    // Clamp thread count
-    unsigned int nthreads = std::max<unsigned int>(1, std::min<unsigned int>(threads, std::thread::hardware_concurrency() ? std::thread::hardware_concurrency() : threads));
-    std::vector<std::thread> pool;
-    pool.reserve(nthreads);
-
-    auto tstart = std::chrono::high_resolution_clock::now();
-    for (unsigned int i = 0; i < nthreads; ++i) pool.emplace_back(worker, i);
-    for (auto &th : pool) th.join();
-    auto tend = std::chrono::high_resolution_clock::now();
-    double ms = std::chrono::duration<double, std::milli>(tend - tstart).count();
-
-    if (!g_quiet.load()){
-        std::lock_guard<std::mutex> lk(print_mtx);
-        std::cerr << "\rTiles remaining: 0\n";
-        std::cerr << "Render time: " << ms << " ms\n";
-    }
-
-    // Print per-tile stats summary when verbose (or when tile_debug requested)
-    if (!g_quiet.load() && (g_verbose.load() || tile_debug)){
-        std::lock_guard<std::mutex> lk(tile_stats_mtx);
-        if (!tile_stats.empty()){
-            long long min_us = tile_stats[0].us;
-            long long max_us = tile_stats[0].us;
-            long long sum_us = 0;
-            for (auto &ts : tile_stats){
-                if (ts.us < min_us) min_us = ts.us;
-                if (ts.us > max_us) max_us = ts.us;
-                sum_us += ts.us;
-            }
-            double avg_ms = (double)sum_us / (double)tile_stats.size() / 1000.0;
-            double min_ms = (double)min_us / 1000.0;
-            double max_ms = (double)max_us / 1000.0;
-            std::cerr << "Tile stats: count=" << tile_stats.size() << ", avg=" << avg_ms << " ms, min=" << min_ms << " ms, max=" << max_ms << " ms\n";
-            if (tile_debug){
-                for (auto &ts : tile_stats){
-                    std::cerr << "  tile(" << ts.x0 << "," << ts.y0 << ") " << ts.w << "x" << ts.h << ": " << (ts.us/1000.0) << " ms\n";
-                }
-            }
-        }
-    }
-}
-
-void SaveImage(string fileName, const vector<color> & bitmap){
+void SaveImage(world &sceneWorld, const string &fileName, const vector<color> & bitmap){
     // Image
-    int W = pworld->GetImageWidth();
-    int H = pworld->GetImageHeight();
+    int W = sceneWorld.GetImageWidth();
+    int H = sceneWorld.GetImageHeight();
 
     // Prepare 8-bit RGB buffer
     std::vector<unsigned char> img;
@@ -294,7 +276,7 @@ void SaveImage(string fileName, const vector<color> & bitmap){
             if (g != g) g = 0.0;
             if (b != b) b = 0.0;
 
-            auto scale = 1.0 / pworld->GetSamplesPerPixel();
+            auto scale = 1.0 / sceneWorld.GetSamplesPerPixel();
             r = sqrt(scale * r);
             g = sqrt(scale * g);
             b = sqrt(scale * b);
@@ -333,39 +315,4 @@ void SaveImage(string fileName, const vector<color> & bitmap){
 
     std::cerr << "\nDone.\n";
 
-}
-
-color ray_color(const ray& r, int depth) {
-    hit_record rec;
-    
-    if(depth <= 0)
-        return color(0,0,0);
-
-    if (pworld->hit(r, 0.001, INF, rec)) {
-        ray scattered;
-        color attenuation;
-        color result;
-        if (rec.mat_ptr->scatter(r, rec, attenuation, scattered)){
-            result = attenuation * ray_color(scattered, depth-1);
-        }
-        else{
-            result = color(0,0,0);
-        }
-
-        // Check for shadow:
-        ray shadowRay;
-        shadowRay.dir = pworld->psun->direction;
-        shadowRay.orig = rec.p;
-        if(pworld->hit(shadowRay, 0.001, INF, rec)){
-            result = result * 0.2;
-        }
-        else{
-            result = result * pworld->psun->sunColor;
-        }
-
-        return result;
-    }
-    vec3 unit_direction = unit_vector(r.direction());
-    auto t = 0.5*(unit_direction.y() + 1.0);
-    return (1.0-t)*color(1.0, 1.0, 1.0) + t*color(0.5, 0.7, 1.0);
 }

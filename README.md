@@ -19,6 +19,20 @@ cmake --build build -- -j2
 ./build/Raytracer
 ```
 
+### Optional: Qt6 UI build
+
+If you want the graphical editor prototype, enable the new `RaytracerUI` target by passing `-DBUILD_QT_UI=ON` during configure. You must have Qt 6.5+ installed (see `QUICK_START_UI.md` for platform-specific setup).
+
+```bash
+cmake -S . -B build -DBUILD_QT_UI=ON
+cmake --build build --target RaytracerUI
+./build/RaytracerUI
+```
+
+Tips:
+- Set `Qt6_DIR` or add Qt to your `CMAKE_PREFIX_PATH` if CMake cannot find it.
+- Keep `BUILD_QT_UI=OFF` on CI or machines without Qt to avoid configure failures.
+
 Notes:
 - The default preset sets `REQUIRE_MESHES=OFF`, so missing optional `.obj` assets will not stop configure.
 - If you want configure to fail when mesh assets are missing (useful for CI / reproducible builds), run:
@@ -78,6 +92,13 @@ On macOS (Homebrew):
 
 ```bash
 brew install glm
+```
+
+For the UI target you additionally need Qt. For example on macOS:
+
+```bash
+brew install qt@6
+cmake -S . -B build -DQt6_DIR="$(brew --prefix qt@6)/lib/cmake/Qt6"
 ```
 
 If `cmake` cannot find `glm` during configure it will stop with a clear error instructing you to install the package or set `CMAKE_PREFIX_PATH`/`glm_DIR` to point at an installed glmConfig.cmake.

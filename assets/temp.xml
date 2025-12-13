@@ -1,0 +1,146 @@
+<?xml version='1.0'?>
+<ItemContainer>
+    <Config>
+        <Width value="800"/>
+        <Aspect_ratio value="1.7777778"/>
+        <Samples_Per_Pixel value="20"/>
+        <Max_Depth value="10"/>
+    </Config>
+    <Camera>
+        <Look_From x="0.0195252" y="4.0609441" z="10.172626"/>
+        <Look_at x="-0.22900437" y="2.2154558" z="0.68166417"/>
+        <Up x="0" y="1" z="0"/>
+        <FOV angle="45"/>
+    </Camera>
+    <Lights>
+        <Sun>
+            <Direction x="0.2" y="0.80000001" z="0.30000001"/>
+            <Intensity value="0.60000002"/>
+            <Color r="1" g="0.94999999" b="0.89999998"/>
+        </Sun>
+    </Lights>
+    <Materials>
+        <Lambertian name="floor_wood">
+            <Color r="0.55000001" g="0.34999999" b="0.2"/>
+        </Lambertian>
+        <Lambertian name="wall_white">
+            <Color r="0.92000002" g="0.89999998" b="0.88"/>
+        </Lambertian>
+        <Lambertian name="wall_accent">
+            <Color r="0.40000001" g="0.5" b="0.60000002"/>
+        </Lambertian>
+        <Lambertian name="ground">
+            <Color r="0.80000001" g="0.80000001" b="0"/>
+        </Lambertian>
+        <Lambertian name="mattBrown">
+            <Color r="0.69999999" g="0.30000001" b="0.30000001"/>
+        </Lambertian>
+        <Metal name="fuzzySilver">
+            <Color r="0.80000001" g="0.80000001" b="0.80000001"/>
+            <Fuzz value="0.30000001"/>
+        </Metal>
+        <Metal name="shinyGold">
+            <Color r="0.80000001" g="0.60000002" b="0.2"/>
+            <Fuzz value="0"/>
+        </Metal>
+        <Emissive name="emissive">
+            <Color r="1" g="1" b="1"/>
+            <Strength value="4"/>
+        </Emissive>
+        <Dielectric name="glass">
+            <Color r="1" g="1" b="1"/>
+            <IOR value="1.5"/>
+        </Dielectric>
+        <Dielectric name="water">
+            <Color r="1" g="1" b="1"/>
+            <IOR value="1.33"/>
+        </Dielectric>
+        <Dielectric name="diamond">
+            <Color r="1" g="1" b="1"/>
+            <IOR value="2.4000001"/>
+        </Dielectric>
+    </Materials>
+    <Objects>
+        <Triangle name="Floor1">
+            <V0 x="-5" y="0" z="-5"/>
+            <V1 x="5" y="0" z="-5"/>
+            <V2 x="-5" y="0" z="5"/>
+            <Material name="floor_wood"/>
+        </Triangle>
+        <Triangle name="Floor2">
+            <V0 x="5" y="0" z="-5"/>
+            <V1 x="5" y="0" z="5"/>
+            <V2 x="-5" y="0" z="5"/>
+            <Material name="floor_wood"/>
+        </Triangle>
+        <Triangle name="BackWall1">
+            <V0 x="-5" y="0" z="-5"/>
+            <V1 x="-5" y="6" z="-5"/>
+            <V2 x="5" y="0" z="-5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="BackWall2">
+            <V0 x="-5" y="6" z="-5"/>
+            <V1 x="5" y="6" z="-5"/>
+            <V2 x="5" y="0" z="-5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="LeftWall1">
+            <V0 x="-5" y="0" z="5"/>
+            <V1 x="-5" y="6" z="5"/>
+            <V2 x="-5" y="0" z="-5"/>
+            <Material name="wall_accent"/>
+        </Triangle>
+        <Triangle name="LeftWall2">
+            <V0 x="-5" y="6" z="5"/>
+            <V1 x="-5" y="6" z="-5"/>
+            <V2 x="-5" y="0" z="-5"/>
+            <Material name="wall_accent"/>
+        </Triangle>
+        <Triangle name="RightWall1">
+            <V0 x="5" y="0" z="-5"/>
+            <V1 x="5" y="6" z="-5"/>
+            <V2 x="5" y="0" z="5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="RightWall2">
+            <V0 x="5" y="6" z="-5"/>
+            <V1 x="5" y="6" z="5"/>
+            <V2 x="5" y="0" z="5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="Ceiling1">
+            <V0 x="-5" y="6" z="5"/>
+            <V1 x="5" y="6" z="5"/>
+            <V2 x="-5" y="6" z="-5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="Ceiling2">
+            <V0 x="5" y="6" z="5"/>
+            <V1 x="5" y="6" z="-5"/>
+            <V2 x="-5" y="6" z="-5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Sphere name="Ceiling Light">
+            <Radius value="0.80000001"/>
+            <Position x="0" y="5.5" z="0"/>
+            <Scale x="1" y="1" z="1"/>
+            <Rotation x="0" y="0" z="0"/>
+            <Material name="emissive"/>
+        </Sphere>
+        <Sphere name="Gold Sphere">
+            <Radius value="0.5"/>
+            <Position x="-1" y="0.5" z="0"/>
+            <Scale x="1" y="1" z="1"/>
+            <Rotation x="0" y="0" z="0"/>
+            <Material name="shinyGold"/>
+        </Sphere>
+        <Sphere name="Glass Sphere">
+            <Radius value="0.60000002"/>
+            <Position x="1" y="0.60000002" z="0"/>
+            <Scale x="1" y="1" z="1"/>
+            <Rotation x="0" y="0" z="0"/>
+            <Material name="glass"/>
+        </Sphere>
+    </Objects>
+</ItemContainer>

@@ -4,6 +4,12 @@
 #include <vector>
 #include "hittable.h"
 
+// Acceleration method for ray-scene intersection
+enum class AccelerationMethod {
+    LINEAR,  // Test all objects sequentially (original method)
+    BVH      // Use Bounding Volume Hierarchy acceleration
+};
+
 class config {
     public:
         config() {}
@@ -14,6 +20,9 @@ class config {
         int IMAGE_HEIGHT;
         int SAMPLES_PER_PIXEL;
         int MAX_DEPTH;
+        
+        // Acceleration structure setting (default to LINEAR for backward compatibility)
+        AccelerationMethod acceleration = AccelerationMethod::LINEAR;
 };
 
 

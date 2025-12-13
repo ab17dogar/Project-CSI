@@ -2,6 +2,7 @@
 #define SPHERE_H
 
 #include "hittable.h"
+#include "aabb.h"
 
 class sphere : public hittable {
     public:
@@ -10,6 +11,7 @@ class sphere : public hittable {
                 : center(cen), radius(r), mat_ptr(m) {};
 
         virtual bool hit(const ray& r, double t_min, double t_max, hit_record& rec) const override;
+        virtual bool bounding_box(aabb& output_box) const override;
 
     public:
         point3 center;
