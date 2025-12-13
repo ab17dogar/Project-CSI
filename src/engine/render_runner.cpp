@@ -13,6 +13,7 @@
 #include "engine/config.h"
 #include "engine/hdri_environment.h"
 #include "engine/material.h"
+#include "engine/oidn_denoiser.h"
 #include "engine/sun.h"
 #include "engine/world.h"
 #include "util/logging.h"
@@ -256,6 +257,19 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
     } else {
       std::cerr << "\rTiles remaining: 0\n";
       std::cerr << "Render time: " << total_ms << " ms\n";
+    }
+  }
+
+  // Apply OIDN denoising if render completed (not cancelled)
+  if (!cancelled.load()) {
+    oidn_denoiser denoiser;
+    if (!g_quiet.load()) {
+      std::cerr << "Applying OIDN denoising..." << std::endl;
+    }
+    auto denoised = denoiser.denoise(bitmap, width, height, true);
+    bitmap = std::move(denoised);
+    if (!g_quiet.load()) {
+      std::cerr << "Denoising complete." << std::endl;
     }
   }
 
