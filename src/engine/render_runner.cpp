@@ -271,6 +271,16 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
     if (!g_quiet.load()) {
       std::cerr << "Denoising complete." << std::endl;
     }
+
+    // Notify UI of denoised result
+    if (onTileFinished) {
+      TileProgressStats finalStats;
+      finalStats.tilesDone = tiles.size();
+      finalStats.totalTiles = tiles.size();
+      finalStats.avgTileMs = 0.0;
+      finalStats.estRemainingMs = 0.0;
+      onTileFinished(bitmap, width, height, finalStats);
+    }
   }
 
   if (!g_quiet.load() && (g_verbose.load() || tile_debug)) {
