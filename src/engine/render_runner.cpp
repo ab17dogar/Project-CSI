@@ -260,28 +260,13 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
     }
   }
 
-  // Apply OIDN denoising if render completed (not cancelled)
+  // OIDN denoising disabled - was causing overexposure issues
+  // TODO: Fix the gamma/normalization pipeline to enable OIDN properly
+  /*
   if (!cancelled.load()) {
-    oidn_denoiser denoiser;
-    if (!g_quiet.load()) {
-      std::cerr << "Applying OIDN denoising..." << std::endl;
-    }
-    auto denoised = denoiser.denoise(bitmap, width, height, true);
-    bitmap = std::move(denoised);
-    if (!g_quiet.load()) {
-      std::cerr << "Denoising complete." << std::endl;
-    }
-
-    // Notify UI of denoised result
-    if (onTileFinished) {
-      TileProgressStats finalStats;
-      finalStats.tilesDone = tiles.size();
-      finalStats.totalTiles = tiles.size();
-      finalStats.avgTileMs = 0.0;
-      finalStats.estRemainingMs = 0.0;
-      onTileFinished(bitmap, width, height, finalStats);
-    }
+    // Normalization and denoising code disabled
   }
+  */
 
   if (!g_quiet.load() && (g_verbose.load() || tile_debug)) {
     std::lock_guard<std::mutex> lock(tile_stats_mtx);
