@@ -20,6 +20,7 @@
 #include "../mesh.h"
 #include "../metal.h"
 #include "../pbr_material.h"
+#include "../point_light.h"
 #include "../sphere.h"
 #include "../sss_material.h"
 #include "../sun.h"
@@ -152,6 +153,36 @@ shared_ptr<world> LoadScene(string fileName) {
   if (!pworld->psun) {
     cerr << "LoadScene: failed to load <Lights> from " << fileName << endl;
     return shared_ptr<world>();
+  }
+
+  // Load point lights (optional)
+  for (XMLElement *pointLightElem = lightsElem->FirstChildElement("PointLight");
+       pointLightElem != nullptr;
+       pointLightElem = pointLightElem->NextSiblingElement("PointLight")) {
+    point3 pos(0, 0, 0);
+    color col(1, 1, 1);
+    double intensity = 1.0;
+
+    XMLElement *posElem = pointLightElem->FirstChildElement("Position");
+    if (posElem) {
+      pos = point3(posElem->Attribute("x") ? atof(posElem->Attribute("x")) : 0,
+                   posElem->Attribute("y") ? atof(posElem->Attribute("y")) : 0,
+                   posElem->Attribute("z") ? atof(posElem->Attribute("z")) : 0);
+    }
+
+    XMLElement *colElem = pointLightElem->FirstChildElement("Color");
+    if (colElem) {
+      col = color(colElem->Attribute("r") ? atof(colElem->Attribute("r")) : 1,
+                  colElem->Attribute("g") ? atof(colElem->Attribute("g")) : 1,
+                  colElem->Attribute("b") ? atof(colElem->Attribute("b")) : 1);
+    }
+
+    XMLElement *intensElem = pointLightElem->FirstChildElement("Intensity");
+    if (intensElem && intensElem->Attribute("value")) {
+      intensity = atof(intensElem->Attribute("value"));
+    }
+
+    pworld->pointLights.push_back(make_shared<PointLight>(pos, col, intensity));
   }
 
   // Load materials from XML (optional, for dynamic material definitions)

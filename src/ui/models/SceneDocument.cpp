@@ -222,6 +222,49 @@ void SceneDocument::setSun(const SunSettings &settings) {
   emit lightingChanged();
 }
 
+PointLightSettings *
+SceneDocument::addPointLight(const PointLightSettings &light) {
+  PointLightSettings newLight = light;
+  if (newLight.uuid.isNull()) {
+    newLight.uuid = QUuid::createUuid();
+  }
+  if (newLight.name.isEmpty()) {
+    newLight.name = QString("Point Light %1").arg(m_pointLights.size() + 1);
+  }
+  m_pointLights.push_back(newLight);
+  markDirty();
+  emit pointLightsChanged();
+  return &m_pointLights.back();
+}
+
+void SceneDocument::removePointLight(const QUuid &uuid) {
+  auto it = std::find_if(
+      m_pointLights.begin(), m_pointLights.end(),
+      [&uuid](const PointLightSettings &l) { return l.uuid == uuid; });
+  if (it != m_pointLights.end()) {
+    m_pointLights.erase(it);
+    markDirty();
+    emit pointLightsChanged();
+  }
+}
+
+PointLightSettings *SceneDocument::findPointLight(const QUuid &uuid) {
+  auto it = std::find_if(
+      m_pointLights.begin(), m_pointLights.end(),
+      [&uuid](const PointLightSettings &l) { return l.uuid == uuid; });
+  return it != m_pointLights.end() ? &(*it) : nullptr;
+}
+
+void SceneDocument::updatePointLight(const QUuid &uuid,
+                                     const PointLightSettings &settings) {
+  if (auto *light = findPointLight(uuid)) {
+    *light = settings;
+    light->uuid = uuid; // Preserve UUID
+    markDirty();
+    emit pointLightsChanged();
+  }
+}
+
 void SceneDocument::setRenderConfig(const RenderConfig &config) {
   m_renderConfig = config;
   markDirty();

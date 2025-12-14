@@ -55,6 +55,9 @@ public:
 
   // HDRI environment map for image-based lighting (optional)
   std::shared_ptr<class hdri_environment> hdri;
+
+  // Point lights for artificial indoor lighting
+  std::vector<std::shared_ptr<class PointLight>> pointLights;
 };
 
 #endif

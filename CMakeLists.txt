@@ -226,6 +226,7 @@ if(BUILD_QT_UI)
             src/ui/views/SceneViewport.cpp
             src/ui/views/SceneHierarchyPanel.cpp
             src/ui/views/PropertiesPanel.cpp
+            src/ui/views/LightingPanel.cpp
             src/ui/views/SceneEditorWidget.cpp
             # Scene Editor - Services
             src/ui/services/SceneConverter.cpp

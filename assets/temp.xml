@@ -7,15 +7,15 @@
         <Max_Depth value="10"/>
     </Config>
     <Camera>
-        <Look_From x="4.7843747" y="4.0676961" z="8.0957994"/>
-        <Look_at x="0.025026862" y="2.2482333" z="-0.4902918"/>
+        <Look_From x="0.36043304" y="5.1011977" z="9.9491081"/>
+        <Look_at x="-0.083357155" y="1.9906482" z="-0.21535887"/>
         <Up x="0" y="1" z="0"/>
         <FOV angle="45"/>
     </Camera>
     <Lights>
         <Sun>
-            <Direction x="0.2" y="0.80000001" z="0.30000001"/>
-            <Intensity value="0.60000002"/>
+            <Direction x="0.2" y="1.2" z="0.30000001"/>
+            <Intensity value="0"/>
             <Color r="1" g="0.94999999" b="0.89999998"/>
         </Sun>
     </Lights>
@@ -122,8 +122,8 @@
             <Material name="wall_white"/>
         </Triangle>
         <Sphere name="Ceiling Light">
-            <Radius value="0.80000001"/>
-            <Position x="0" y="5.5" z="0"/>
+            <Radius value="0.30000001"/>
+            <Position x="0" y="5.8000002" z="0"/>
             <Scale x="1" y="1" z="1"/>
             <Rotation x="0" y="0" z="0"/>
             <Material name="emissive"/>
