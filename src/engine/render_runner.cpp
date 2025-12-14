@@ -14,6 +14,7 @@
 #include "engine/hdri_environment.h"
 #include "engine/material.h"
 #include "engine/oidn_denoiser.h"
+#include "engine/point_light.h"
 #include "engine/sun.h"
 #include "engine/world.h"
 #include "util/logging.h"
@@ -41,25 +42,58 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
     color attenuation;
     color result;
 
+    // Get emission from material (non-zero for emissive materials)
+    color emitted = rec.mat_ptr->emitted(rec.u, rec.v, rec.p);
+
     if (rec.mat_ptr->scatter(r, rec, attenuation, scattered)) {
       result = attenuation * TraceRayInternal(scattered, depth - 1, sceneWorld);
+
+      // Check if the scattered ray is refracted (going through glass)
+      // Refracted rays go opposite to surface normal
+      bool isRefracted = dot(scattered.direction(), rec.normal) < 0;
+
+      if (!isRefracted) {
+        // Apply sun lighting with shadow testing
+        ray shadowRay;
+        shadowRay.dir = sceneWorld.psun->direction;
+        shadowRay.orig = rec.p;
+        hit_record shadowRec;
+        if (sceneWorld.hit(shadowRay, 0.001, INF, shadowRec)) {
+          result = result * 0.3; // Softer shadow
+        } else {
+          result = result * sceneWorld.psun->sunColor;
+        }
+
+        // Direct sampling of point lights (Next Event Estimation)
+        for (const auto &light : sceneWorld.pointLights) {
+          vec3 toLight = light->position - rec.p;
+          double lightDist = toLight.length();
+          vec3 lightDir = toLight / lightDist;
+
+          // Check if light is visible (shadow ray)
+          ray lightShadowRay;
+          lightShadowRay.orig = rec.p;
+          lightShadowRay.dir = lightDir;
+          hit_record lightShadowRec;
+
+          if (!sceneWorld.hit(lightShadowRay, 0.001, lightDist - 0.001,
+                              lightShadowRec)) {
+            // Light is visible - calculate contribution
+            double cosTheta = std::max(0.0, dot(rec.normal, lightDir));
+            double attenuation = light->intensity / (lightDist * lightDist);
+            result = result + light->lightColor * cosTheta * attenuation;
+          }
+        }
+      }
+      // Glass (refractive) materials - light passes through, no shadow
+      // darkening
     } else {
-      // Scatter returned false - could be emissive or absorbed
+      // Scatter returned false - use emission only
       result = color(0, 0, 0);
     }
 
-    // Check for shadow (original simple logic)
-    ray shadowRay;
-    shadowRay.dir = sceneWorld.psun->direction;
-    shadowRay.orig = rec.p;
-    hit_record shadowRec;
-    if (sceneWorld.hit(shadowRay, 0.001, INF, shadowRec)) {
-      result = result * 0.2; // In shadow
-    } else {
-      result = result * sceneWorld.psun->sunColor;
-    }
-
-    return result;
+    // Add emission to result
+    return emitted + result;
   }
 
   // Sky background gradient or HDRI environment

@@ -40,6 +40,18 @@ struct SunSettings {
 };
 
 /**
+ * @brief Point light settings for artificial indoor lighting
+ */
+struct PointLightSettings {
+  QUuid uuid;
+  QString name{"Point Light"};
+  glm::vec3 position{0.0f, 1.0f, 0.0f};
+  glm::vec3 color{1.0f, 0.95f, 0.8f};
+  float intensity{5.0f};
+  bool enabled{true};
+};
+
+/**
  * @brief Render configuration settings
  */
 struct RenderConfig {
@@ -147,6 +159,16 @@ public:
   const SunSettings &sun() const { return m_sun; }
   void setSun(const SunSettings &settings);
 
+  // Point lights for indoor/artificial lighting
+  const std::vector<PointLightSettings> &pointLights() const {
+    return m_pointLights;
+  }
+  PointLightSettings *
+  addPointLight(const PointLightSettings &light = PointLightSettings());
+  void removePointLight(const QUuid &uuid);
+  PointLightSettings *findPointLight(const QUuid &uuid);
+  void updatePointLight(const QUuid &uuid, const PointLightSettings &settings);
+
   // ===== Render Config =====
 
   RenderConfig &renderConfig() { return m_renderConfig; }
@@ -196,6 +218,7 @@ signals:
 
   void cameraChanged();
   void lightingChanged();
+  void pointLightsChanged();
   void renderConfigChanged();
 
   void selectionChanged(SceneNode *node);
@@ -220,6 +243,7 @@ private:
   // Settings
   CameraSettings m_camera;
   SunSettings m_sun;
+  std::vector<PointLightSettings> m_pointLights;
   RenderConfig m_renderConfig;
 
   // Selection

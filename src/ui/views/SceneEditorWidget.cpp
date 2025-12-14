@@ -8,6 +8,7 @@
 #include "../models/SceneNode.h"
 #include "../serialization/SceneSerializer.h"
 #include "../serialization/XMLSceneSerializer.h"
+#include "LightingPanel.h"
 #include "PropertiesPanel.h"
 #include "SceneHierarchyPanel.h"
 #include "SceneViewport.h"
@@ -21,6 +22,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QTabWidget>
 #include <QVBoxLayout>
 
 namespace Raytracer {
@@ -83,17 +85,24 @@ void SceneEditorWidget::setupUI() {
 
   m_mainSplitter->addWidget(viewportContainer);
 
-  // Right side: properties panel
-  m_propertiesPanel = new PropertiesPanel(m_mainSplitter);
-  m_propertiesPanel->setMinimumWidth(200);
-  m_propertiesPanel->setMaximumWidth(350);
-  m_mainSplitter->addWidget(m_propertiesPanel);
+  // Right side: tabbed panel for Properties and Lighting
+  QTabWidget *rightTabs = new QTabWidget(m_mainSplitter);
+  rightTabs->setMinimumWidth(200);
+  rightTabs->setMaximumWidth(380);
+
+  m_propertiesPanel = new PropertiesPanel(rightTabs);
+  rightTabs->addTab(m_propertiesPanel, "Properties");
+
+  m_lightingPanel = new LightingPanel(rightTabs);
+  rightTabs->addTab(m_lightingPanel, "Lighting");
+
+  m_mainSplitter->addWidget(rightTabs);
 
   // Set splitter proportions
   m_mainSplitter->setStretchFactor(0, 0); // Hierarchy - fixed
   m_mainSplitter->setStretchFactor(1, 1); // Viewport - stretchy
-  m_mainSplitter->setStretchFactor(2, 0); // Properties - fixed
-  m_mainSplitter->setSizes({200, 600, 250});
+  m_mainSplitter->setStretchFactor(2, 0); // Properties/Lighting - fixed
+  m_mainSplitter->setSizes({200, 600, 280});
 
   mainLayout->addWidget(m_mainSplitter, 1);
 }
@@ -265,6 +274,8 @@ void SceneEditorWidget::setupConnections() {
   m_propertiesPanel->setSceneDocument(m_document.get());
   m_propertiesPanel->setSelectionManager(m_selectionManager.get());
   m_propertiesPanel->setCommandHistory(m_commandHistory.get());
+
+  m_lightingPanel->setSceneDocument(m_document.get());
 }
 
 void SceneEditorWidget::setupMenus() {
