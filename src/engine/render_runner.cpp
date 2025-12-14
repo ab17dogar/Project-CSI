@@ -42,32 +42,21 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
     color result;
 
     if (rec.mat_ptr->scatter(r, rec, attenuation, scattered)) {
-      // Get color from scattered ray
       result = attenuation * TraceRayInternal(scattered, depth - 1, sceneWorld);
-
-      // Only apply shadow testing for diffuse-like materials
-      // Check if the scattered ray is mostly in the same hemisphere as normal
-      // (reflection/diffuse) vs opposite (refraction through glass)
-      bool isRefracted = dot(scattered.direction(), rec.normal) < 0;
-
-      if (!isRefracted) {
-        // Diffuse/reflective material - apply shadow testing
-        ray shadowRay;
-        shadowRay.dir = sceneWorld.psun->direction;
-        shadowRay.orig = rec.p;
-        hit_record shadowRec;
-        if (sceneWorld.hit(shadowRay, 0.001, INF, shadowRec)) {
-          result = result * 0.3; // Softer shadow
-        } else {
-          result = result * sceneWorld.psun->sunColor;
-        }
-      }
-      // Refractive materials (glass) - no shadow darkening, light passes
-      // through
-
     } else {
-      // Emissive material - return attenuation as emission color
-      result = attenuation;
+      // Scatter returned false - could be emissive or absorbed
+      result = color(0, 0, 0);
+    }
+
+    // Check for shadow (original simple logic)
+    ray shadowRay;
+    shadowRay.dir = sceneWorld.psun->direction;
+    shadowRay.orig = rec.p;
+    hit_record shadowRec;
+    if (sceneWorld.hit(shadowRay, 0.001, INF, shadowRec)) {
+      result = result * 0.2; // In shadow
+    } else {
+      result = result * sceneWorld.psun->sunColor;
     }
 
     return result;
