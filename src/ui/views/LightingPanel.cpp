@@ -4,6 +4,7 @@
 
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QVBoxLayout>
 
 namespace Raytracer {
@@ -66,17 +67,28 @@ void LightingPanel::setupUI() {
 }
 
 void LightingPanel::setupSunSection() {
-  m_sunGroup = new QGroupBox("Sun (Directional Light)", this);
+  m_sunGroup = new QGroupBox("☀️ Sun (Outdoor/Directional Light)", this);
+  m_sunGroup->setToolTip("Controls the main directional light source.\n"
+                         "Use this for outdoor scenes or as ambient light.");
   auto *layout = new QFormLayout(m_sunGroup);
+
+  // Add description label
+  QLabel *sunDesc =
+      new QLabel("Natural sunlight direction and intensity.", this);
+  sunDesc->setStyleSheet("color: gray; font-size: 11px;");
+  layout->addRow(sunDesc);
 
   m_sunDirectionEditor = new Vec3Editor("Direction", this);
   m_sunDirectionEditor->setRange(-10.0, 10.0);
   m_sunDirectionEditor->setSingleStep(0.1);
+  m_sunDirectionEditor->setToolTip("Direction the sun shines from (X, Y, Z)");
   connect(m_sunDirectionEditor, &Vec3Editor::valueChanged, this,
           &LightingPanel::onSunDirectionChanged);
   layout->addRow(m_sunDirectionEditor);
 
   m_sunColorEditor = new ColorEditor("Color", this);
+  m_sunColorEditor->setToolTip(
+      "Sunlight color (warm for sunset, cool for midday)");
   connect(m_sunColorEditor, &ColorEditor::colorChanged, this,
           &LightingPanel::onSunColorChanged);
   layout->addRow(m_sunColorEditor);
@@ -85,6 +97,7 @@ void LightingPanel::setupSunSection() {
   m_sunIntensitySpin->setRange(0.0, 10.0);
   m_sunIntensitySpin->setSingleStep(0.1);
   m_sunIntensitySpin->setDecimals(2);
+  m_sunIntensitySpin->setToolTip("Sun brightness (0 = off, 1 = normal)");
   connect(m_sunIntensitySpin,
           QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
           &LightingPanel::onSunIntensityChanged);
@@ -92,20 +105,33 @@ void LightingPanel::setupSunSection() {
 }
 
 void LightingPanel::setupPointLightsSection() {
-  m_pointLightsGroup = new QGroupBox("Point Lights", this);
+  m_pointLightsGroup =
+      new QGroupBox("💡 Point Lights (Indoor/Artificial)", this);
+  m_pointLightsGroup->setToolTip(
+      "Add artificial light sources for indoor scenes.\n"
+      "These lights illuminate objects based on distance.");
   auto *layout = new QVBoxLayout(m_pointLightsGroup);
+
+  // Add description label
+  QLabel *lightDesc = new QLabel(
+      "Create light bulbs, lamps, or other local light sources.", this);
+  lightDesc->setStyleSheet("color: gray; font-size: 11px;");
+  layout->addWidget(lightDesc);
 
   // List of lights
   m_pointLightsList = new QListWidget(this);
-  m_pointLightsList->setMaximumHeight(120);
+  m_pointLightsList->setMaximumHeight(100);
+  m_pointLightsList->setToolTip("Select a light to edit its properties below");
   connect(m_pointLightsList, &QListWidget::itemSelectionChanged, this,
           &LightingPanel::onPointLightSelected);
   layout->addWidget(m_pointLightsList);
 
   // Add/Remove buttons
   auto *buttonLayout = new QHBoxLayout();
-  m_addLightButton = new QPushButton("Add Light", this);
-  m_removeLightButton = new QPushButton("Remove", this);
+  m_addLightButton = new QPushButton("➕ Add Light", this);
+  m_addLightButton->setToolTip("Add a new point light to the scene");
+  m_removeLightButton = new QPushButton("➖ Remove", this);
+  m_removeLightButton->setToolTip("Remove the selected light");
   connect(m_addLightButton, &QPushButton::clicked, this,
           &LightingPanel::onAddPointLight);
   connect(m_removeLightButton, &QPushButton::clicked, this,
@@ -115,10 +141,11 @@ void LightingPanel::setupPointLightsSection() {
   layout->addLayout(buttonLayout);
 
   // Light properties group
-  m_lightPropsGroup = new QGroupBox("Light Properties", this);
+  m_lightPropsGroup = new QGroupBox("Selected Light Properties", this);
   auto *propsLayout = new QFormLayout(m_lightPropsGroup);
 
-  m_lightEnabledCheck = new QCheckBox("Enabled", this);
+  m_lightEnabledCheck = new QCheckBox("Light is ON", this);
+  m_lightEnabledCheck->setToolTip("Toggle this light on/off");
   connect(m_lightEnabledCheck, &QCheckBox::stateChanged, this,
           &LightingPanel::onPointLightEnabledChanged);
   propsLayout->addRow(m_lightEnabledCheck);
@@ -126,19 +153,24 @@ void LightingPanel::setupPointLightsSection() {
   m_lightPositionEditor = new Vec3Editor("Position", this);
   m_lightPositionEditor->setRange(-100.0, 100.0);
   m_lightPositionEditor->setSingleStep(0.1);
+  m_lightPositionEditor->setToolTip("Light position in 3D space (X, Y, Z)");
   connect(m_lightPositionEditor, &Vec3Editor::valueChanged, this,
           &LightingPanel::onPointLightPositionChanged);
   propsLayout->addRow(m_lightPositionEditor);
 
   m_lightColorEditor = new ColorEditor("Color", this);
+  m_lightColorEditor->setToolTip(
+      "Light color (warm white for bulbs, cool for LEDs)");
   connect(m_lightColorEditor, &ColorEditor::colorChanged, this,
           &LightingPanel::onPointLightColorChanged);
   propsLayout->addRow(m_lightColorEditor);
 
   m_lightIntensitySpin = new QDoubleSpinBox(this);
   m_lightIntensitySpin->setRange(0.0, 100.0);
-  m_lightIntensitySpin->setSingleStep(0.5);
+  m_lightIntensitySpin->setSingleStep(1.0);
   m_lightIntensitySpin->setDecimals(1);
+  m_lightIntensitySpin->setToolTip(
+      "Light brightness (higher = brighter, try 5-20 for indoor)");
   connect(m_lightIntensitySpin,
           QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
           &LightingPanel::onPointLightIntensityChanged);

@@ -192,6 +192,10 @@ void SceneViewport::setSceneDocument(SceneDocument *document) {
             [this](const QUuid &) { update(); });
     connect(m_document, &SceneDocument::nodeChanged, this,
             [this](SceneNode *) { update(); });
+    connect(m_document, &SceneDocument::pointLightsChanged, this,
+            [this]() { update(); });
+    connect(m_document, &SceneDocument::lightingChanged, this,
+            [this]() { update(); });
   }
 
   update();
@@ -907,6 +911,33 @@ void SceneViewport::renderScene() {
     for (SceneNode *child : root->children()) {
       renderNode(child, identity);
     }
+  }
+
+  // Render light gizmos (point lights as small yellow spheres)
+  for (const auto &light : m_document->pointLights()) {
+    if (!light.enabled)
+      continue;
+
+    QMatrix4x4 modelMatrix;
+    modelMatrix.translate(light.position.x, light.position.y, light.position.z);
+    modelMatrix.scale(0.3f); // Visible sphere for light gizmo
+
+    // Bright yellow color for light indicator
+    QVector3D lightColor(1.0f, 0.9f, 0.2f);
+
+    QMatrix4x4 mvp = m_projectionMatrix * m_viewMatrix * modelMatrix;
+    m_basicShader->setUniformValue("mvp", mvp);
+    m_basicShader->setUniformValue("model", modelMatrix);
+    m_basicShader->setUniformValue("normalMatrix", modelMatrix.normalMatrix());
+    m_basicShader->setUniformValue("objectColor", lightColor);
+    m_basicShader->setUniformValue("isSelected", false);
+    m_basicShader->setUniformValue("isWireframe", false);
+
+    m_sphereVAO.bind();
+    m_sphereIBO.bind(); // Must bind IBO explicitly
+    glDrawElements(GL_TRIANGLES, m_sphereIndexCount, GL_UNSIGNED_INT, nullptr);
+    m_sphereIBO.release();
+    m_sphereVAO.release();
   }
 
   m_basicShader->release();
