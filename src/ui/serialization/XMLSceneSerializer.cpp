@@ -245,6 +245,30 @@ bool XMLSceneSerializer::loadLights(tinyxml2::XMLElement *lightsElem,
   }
 
   document->setSun(sun);
+
+  // Load point lights
+  for (auto *elem = lightsElem->FirstChildElement("PointLight"); elem;
+       elem = elem->NextSiblingElement("PointLight")) {
+    PointLightSettings light;
+    light.name = QString::fromStdString(
+        elem->Attribute("name") ? elem->Attribute("name") : "Point Light");
+    light.enabled = elem->BoolAttribute("enabled", true);
+
+    if (auto *posElem = elem->FirstChildElement("Position")) {
+      light.position = readVec3(posElem);
+    }
+
+    if (auto *colElem = elem->FirstChildElement("Color")) {
+      light.color = readColorRgb(colElem);
+    }
+
+    if (auto *intensElem = elem->FirstChildElement("Intensity")) {
+      light.intensity = intensElem->FloatAttribute("value", 5.0f);
+    }
+
+    document->addPointLight(light);
+  }
+
   return true;
 }
 
@@ -562,6 +586,7 @@ void XMLSceneSerializer::saveLights(tinyxml2::XMLDocument &doc,
   tinyxml2::XMLElement *lightsElem = doc.NewElement("Lights");
   root->InsertEndChild(lightsElem);
 
+  // Save sun (directional light)
   tinyxml2::XMLElement *sunElem = doc.NewElement("Sun");
   lightsElem->InsertEndChild(sunElem);
 
@@ -572,6 +597,21 @@ void XMLSceneSerializer::saveLights(tinyxml2::XMLDocument &doc,
   sunElem->InsertEndChild(intensityElem);
 
   writeVec3Rgb(doc, sunElem, "Color", sunSettings.color);
+
+  // Save point lights
+  for (const auto &light : document->pointLights()) {
+    tinyxml2::XMLElement *lightElem = doc.NewElement("PointLight");
+    lightElem->SetAttribute("name", light.name.toStdString().c_str());
+    lightElem->SetAttribute("enabled", light.enabled);
+    lightsElem->InsertEndChild(lightElem);
+
+    writeVec3(doc, lightElem, "Position", light.position);
+    writeVec3Rgb(doc, lightElem, "Color", light.color);
+
+    tinyxml2::XMLElement *intensElem = doc.NewElement("Intensity");
+    intensElem->SetAttribute("value", light.intensity);
+    lightElem->InsertEndChild(intensElem);
+  }
 }
 
 void XMLSceneSerializer::saveMaterials(tinyxml2::XMLDocument &doc,

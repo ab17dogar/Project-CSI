@@ -7,10 +7,10 @@
         <Max_Depth value="10"/>
     </Config>
     <Camera>
-        <Look_From x="2.9913778" y="5.4442034" z="-4.3546243"/>
-        <Look_at x="-0.14304534" y="2.2728987" z="0.292348"/>
+        <Look_From x="4.8000002" y="2.4000001" z="6.4000001"/>
+        <Look_at x="0" y="1.5" z="0"/>
         <Up x="0" y="1" z="0"/>
-        <FOV angle="45"/>
+        <FOV angle="60"/>
     </Camera>
     <Lights>
         <Sun>
@@ -19,9 +19,9 @@
             <Color r="1" g="0.94999999" b="0.89999998"/>
         </Sun>
         <PointLight name="Point Light 1" enabled="true">
-            <Position x="0" y="3" z="0"/>
+            <Position x="-0.40000001" y="0.5" z="0"/>
             <Color r="1" g="0.94999999" b="0.80000001"/>
-            <Intensity value="12"/>
+            <Intensity value="20"/>
         </PointLight>
     </Lights>
     <Materials>
@@ -127,11 +127,11 @@
             <Material name="wall_white"/>
         </Triangle>
         <Sphere name="Ceiling Light">
-            <Radius value="0.40000001"/>
-            <Position x="-1.8" y="4.0999999" z="0"/>
+            <Radius value="0.80000001"/>
+            <Position x="0" y="5.5" z="0"/>
             <Scale x="1" y="1" z="1"/>
             <Rotation x="0" y="0" z="0"/>
-            <Material name="water"/>
+            <Material name="emissive"/>
         </Sphere>
         <Sphere name="Gold Sphere">
             <Radius value="0.5"/>
