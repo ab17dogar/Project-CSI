@@ -2,7 +2,6 @@
 #include "triangle.h"
 #include "aabb.h"
 #include <cmath>
-#include <iostream>
 
 // Constructor without UVs (backward compatible)
 triangle::triangle(const vec3 &v0, const vec3 &v1, const vec3 &v2,
@@ -16,8 +15,7 @@ triangle::triangle(const vec3 &v0, const vec3 &v1, const vec3 &v2,
   const float threshold = 1e-8f;
   if (areaSquared < threshold) {
     degenerate = true;
-    std::cerr << "Warning: created degenerate triangle (area ~ 0)."
-              << std::endl;
+    // Note: Degenerate triangles are silently skipped in hit()
   }
 }
 
@@ -35,8 +33,7 @@ triangle::triangle(const vec3 &v0, const vec3 &v1, const vec3 &v2,
   const float threshold = 1e-8f;
   if (areaSquared < threshold) {
     degenerate = true;
-    std::cerr << "Warning: created degenerate triangle (area ~ 0)."
-              << std::endl;
+    // Note: Degenerate triangles are silently skipped in hit()
   }
 }
 
