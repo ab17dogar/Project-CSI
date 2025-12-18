@@ -1,6 +1,7 @@
 #include "ui/views/MainWindow.h"
 
 #include <QAction>
+#include <QCloseEvent>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -24,6 +25,7 @@
 #include <cmath>
 #include <limits>
 
+#include "ui/commands/CommandHistory.h"
 #include "ui/controllers/RenderController.h"
 #include "ui/controllers/ViewportCameraController.h"
 #include "ui/models/PresetRepository.h"
@@ -69,6 +71,54 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() = default;
 
+void MainWindow::closeEvent(QCloseEvent *event) {
+  if (maybeSave()) {
+    // Stop any ongoing render before closing
+    if (m_renderController) {
+      m_renderController->stopRender();
+    }
+    event->accept();
+  } else {
+    event->ignore();
+  }
+}
+
+bool MainWindow::maybeSave() {
+  // Check if Scene Editor document has unsaved changes
+  if (!m_sceneEditor || !m_sceneEditor->document()) {
+    return true; // No document, safe to close
+  }
+
+  if (!m_sceneEditor->document()->isDirty()) {
+    return true; // No unsaved changes
+  }
+
+  // Show confirmation dialog
+  QMessageBox msgBox(this);
+  msgBox.setIcon(QMessageBox::Warning);
+  msgBox.setWindowTitle(tr("Unsaved Changes"));
+  msgBox.setText(tr("The scene has been modified."));
+  msgBox.setInformativeText(tr("Do you want to save your changes?"));
+  msgBox.setStandardButtons(QMessageBox::Save | QMessageBox::Discard |
+                            QMessageBox::Cancel);
+  msgBox.setDefaultButton(QMessageBox::Save);
+
+  const int ret = msgBox.exec();
+  switch (ret) {
+  case QMessageBox::Save:
+    // Try to save
+    if (m_sceneEditor->saveScene()) {
+      return true; // Saved successfully
+    }
+    return false; // Save failed or cancelled
+  case QMessageBox::Discard:
+    return true; // User chose not to save
+  case QMessageBox::Cancel:
+  default:
+    return false; // User cancelled
+  }
+}
+
 void MainWindow::buildUi() {
   auto *fileMenu = menuBar()->addMenu(tr("&File"));
   fileMenu->addAction(tr("Open Scene"), this, [this]() {
@@ -94,7 +144,104 @@ void MainWindow::buildUi() {
   refreshRecentScenesMenu();
 
   fileMenu->addSeparator();
-  fileMenu->addAction(tr("Quit"), this, &QWidget::close);
+  fileMenu->addAction(tr("Quit"), this, &QWidget::close, QKeySequence::Quit);
+
+  // ===== Edit Menu =====
+  auto *editMenu = menuBar()->addMenu(tr("&Edit"));
+
+  QAction *undoAction = editMenu->addAction(
+      tr("Undo"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->undo();
+      },
+      QKeySequence::Undo);
+  undoAction->setEnabled(false);
+
+  QAction *redoAction = editMenu->addAction(
+      tr("Redo"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->redo();
+      },
+      QKeySequence::Redo);
+  redoAction->setEnabled(false);
+
+  editMenu->addSeparator();
+
+  editMenu->addAction(
+      tr("Delete"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->deleteSelected();
+      },
+      QKeySequence::Delete);
+
+  editMenu->addAction(
+      tr("Duplicate"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->duplicateSelected();
+      },
+      QKeySequence(Qt::CTRL | Qt::Key_D));
+
+  editMenu->addSeparator();
+
+  editMenu->addAction(
+      tr("Select All"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->selectAll();
+      },
+      QKeySequence::SelectAll);
+
+  // Connect undo/redo state updates
+  if (m_sceneEditor && m_sceneEditor->commandHistory()) {
+    connect(m_sceneEditor->commandHistory(),
+            &scene::CommandHistory::canUndoChanged, undoAction,
+            &QAction::setEnabled);
+    connect(m_sceneEditor->commandHistory(),
+            &scene::CommandHistory::canRedoChanged, redoAction,
+            &QAction::setEnabled);
+  }
+
+  // ===== View Menu =====
+  auto *viewMenu = menuBar()->addMenu(tr("&View"));
+
+  viewMenu->addAction(
+      tr("Focus on Selection"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->focusOnSelection();
+      },
+      Qt::Key_F);
+
+  viewMenu->addAction(
+      tr("Reset View"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->resetView();
+      },
+      Qt::Key_Home);
+
+  viewMenu->addSeparator();
+
+  QAction *gridAction = viewMenu->addAction(
+      tr("Toggle Grid"), this,
+      [this]() {
+        if (m_sceneEditor)
+          m_sceneEditor->toggleGrid();
+      },
+      Qt::Key_G);
+  gridAction->setCheckable(true);
+  gridAction->setChecked(true);
+
+  QAction *axesAction = viewMenu->addAction(tr("Toggle Axes"), this, [this]() {
+    if (m_sceneEditor)
+      m_sceneEditor->toggleAxes();
+  });
+  axesAction->setCheckable(true);
+  axesAction->setChecked(true);
 
   auto *toolbar = addToolBar(tr("Render"));
   m_startAction = toolbar->addAction(tr("Start"));

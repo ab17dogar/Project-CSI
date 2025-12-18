@@ -5,9 +5,9 @@
 #include <glm/gtx/transform2.hpp>
 #include <iostream>
 
-
 #include "../3rdParty/ObjLoader/OBJ_Loader.h"
 #include "../util/logging.h"
+#include "bvh_node.h"
 #include "mesh.h"
 
 
@@ -97,19 +97,57 @@ bool mesh::load(string fileName) {
       cerr << "Loaded " << triangleList.size() << " triangles with UV coords"
            << endl;
 
+    // Automatically build per-mesh BVH for acceleration
+    buildMeshBVH();
+
     return true;
+  }
+}
+
+void mesh::buildMeshBVH() {
+  if (triangleList.empty()) {
+    return;
+  }
+
+  // Convert triangles to shared_ptr<hittable> for BVH construction
+  std::vector<std::shared_ptr<hittable>> tri_ptrs;
+  tri_ptrs.reserve(triangleList.size());
+
+  for (const auto &tri : triangleList) {
+    tri_ptrs.push_back(std::make_shared<triangle>(tri));
+  }
+
+  // Build BVH from triangles
+  mesh_bvh = std::make_shared<bvh_node>(tri_ptrs);
+
+  if (!g_quiet.load() && !g_suppress_mesh_messages.load()) {
+    cerr << "Built mesh BVH: " << mesh_bvh->getNodeCount() << " nodes, "
+         << mesh_bvh->getLeafCount() << " leaves, max depth "
+         << mesh_bvh->getMaxDepth() << endl;
   }
 }
 
 bool mesh::hit(const ray &r, double t_min, double t_max,
                hit_record &rec) const {
+  // Use per-mesh BVH if available (O(log n) instead of O(n))
+  if (mesh_bvh) {
+    return mesh_bvh->hit(r, t_min, t_max, rec);
+  }
+
+  // Fallback to linear search if BVH not built
+  // (should not happen in normal use since load() builds BVH automatically)
+  hit_record temp_rec;
+  bool hit_anything = false;
+  auto closest_so_far = t_max;
 
   for (size_t i = 0; i < triangleList.size(); i++) {
-    if (triangleList[i].hit(r, t_min, t_max, rec)) {
-      return true;
+    if (triangleList[i].hit(r, t_min, closest_so_far, temp_rec)) {
+      hit_anything = true;
+      closest_so_far = temp_rec.t;
+      rec = temp_rec;
     }
   }
-  return false;
+  return hit_anything;
 }
 
 bool mesh::bounding_box(aabb &output_box) const {

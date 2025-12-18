@@ -63,19 +63,46 @@ public:
     // Flip V coordinate (image is stored top-to-bottom)
     v = 1.0 - v;
 
-    // Convert to pixel coordinates
-    int i = static_cast<int>(u * width);
-    int j = static_cast<int>(v * height);
+    // Bilinear filtering: sample 4 neighboring pixels and interpolate
+    double fx = u * width - 0.5;
+    double fy = v * height - 0.5;
 
+    int x0 = static_cast<int>(std::floor(fx));
+    int y0 = static_cast<int>(std::floor(fy));
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+
+    // Fractional parts for interpolation
+    double tx = fx - x0;
+    double ty = fy - y0;
+
+    // Sample 4 corners with wrapping
+    color c00 = sample_pixel(x0, y0);
+    color c10 = sample_pixel(x1, y0);
+    color c01 = sample_pixel(x0, y1);
+    color c11 = sample_pixel(x1, y1);
+
+    // Bilinear interpolation
+    color c0 = c00 * (1.0 - tx) + c10 * tx; // Top edge
+    color c1 = c01 * (1.0 - tx) + c11 * tx; // Bottom edge
+    return c0 * (1.0 - ty) + c1 * ty;       // Final blend
+  }
+
+  int get_width() const { return width; }
+  int get_height() const { return height; }
+
+private:
+  // Helper to sample a single pixel with clamping
+  color sample_pixel(int i, int j) const {
     // Clamp to valid range
-    if (i >= width)
-      i = width - 1;
-    if (j >= height)
-      j = height - 1;
     if (i < 0)
       i = 0;
+    if (i >= width)
+      i = width - 1;
     if (j < 0)
       j = 0;
+    if (j >= height)
+      j = height - 1;
 
     const double color_scale = 1.0 / 255.0;
     unsigned char *pixel = data + j * bytes_per_scanline + i * 3;
@@ -84,10 +111,6 @@ public:
                  color_scale * pixel[2]);
   }
 
-  int get_width() const { return width; }
-  int get_height() const { return height; }
-
-private:
   unsigned char *data;
   int width, height;
   int bytes_per_scanline;

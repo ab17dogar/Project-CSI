@@ -46,6 +46,21 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
     color emitted = rec.mat_ptr->emitted(rec.u, rec.v, rec.p);
 
     if (rec.mat_ptr->scatter(r, rec, attenuation, scattered)) {
+      // Russian Roulette path termination after first few bounces
+      // Probabilistically terminate paths with low contribution while
+      // maintaining unbiased results
+      int max_depth = sceneWorld.GetMaxDepth();
+      if (depth < max_depth - 3) { // Only apply after first 3 bounces
+        double luminance = 0.2126 * attenuation.x() + 0.7152 * attenuation.y() +
+                           0.0722 * attenuation.z();
+        double continue_prob = std::min(0.95, std::max(0.1, luminance));
+        if (random_double() > continue_prob) {
+          return emitted; // Terminate path, return emission only
+        }
+        // Adjust for probability of not terminating
+        attenuation = attenuation / continue_prob;
+      }
+
       result = attenuation * TraceRayInternal(scattered, depth - 1, sceneWorld);
 
       // Check if the scattered ray is refracted (going through glass)
@@ -56,7 +71,8 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
         // Apply sun lighting with shadow testing
         ray shadowRay;
         shadowRay.dir = sceneWorld.psun->direction;
-        shadowRay.orig = rec.p;
+        // Offset origin along normal to prevent shadow acne
+        shadowRay.orig = rec.p + rec.normal * 0.001;
         hit_record shadowRec;
         if (sceneWorld.hit(shadowRay, 0.001, INF, shadowRec)) {
           result = result * 0.3; // Softer shadow
@@ -72,7 +88,8 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
 
           // Check if light is visible (shadow ray)
           ray lightShadowRay;
-          lightShadowRay.orig = rec.p;
+          // Offset origin along normal to prevent shadow acne
+          lightShadowRay.orig = rec.p + rec.normal * 0.001;
           lightShadowRay.dir = lightDir;
           hit_record lightShadowRec;
 
@@ -283,13 +300,37 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
     }
   }
 
-  // OIDN denoising disabled - was causing overexposure issues
-  // TODO: Fix the gamma/normalization pipeline to enable OIDN properly
-  /*
-  if (!cancelled.load()) {
-    // Normalization and denoising code disabled
+  // OIDN denoising pass (if enabled and not cancelled)
+  if (!cancelled.load() && sceneWorld.pconfig &&
+      sceneWorld.pconfig->enableDenoiser) {
+    oidn_denoiser denoiser;
+    if (oidn_denoiser::is_available()) {
+      if (!g_quiet.load()) {
+        std::cerr << "Applying OIDN denoiser (" << oidn_denoiser::version()
+                  << ")...\n";
+      }
+
+      // Normalize samples (divide by sample count for averaging)
+      const int samples = sceneWorld.GetSamplesPerPixel();
+      std::vector<color> normalized_bitmap(bitmap.size());
+      for (size_t i = 0; i < bitmap.size(); i++) {
+        normalized_bitmap[i] = bitmap[i] / static_cast<double>(samples);
+      }
+
+      // Denoise in HDR mode
+      auto denoised = denoiser.denoise(normalized_bitmap, width, height, true);
+
+      // Scale back to accumulated format (multiply by samples so downstream
+      // gamma correction works)
+      for (size_t i = 0; i < bitmap.size(); i++) {
+        bitmap[i] = denoised[i] * static_cast<double>(samples);
+      }
+
+      if (!g_quiet.load()) {
+        std::cerr << "Denoising complete.\n";
+      }
+    }
   }
-  */
 
   if (!g_quiet.load() && (g_verbose.load() || tile_debug)) {
     std::lock_guard<std::mutex> lock(tile_stats_mtx);

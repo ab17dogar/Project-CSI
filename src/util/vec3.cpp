@@ -111,3 +111,28 @@ vec3 refract(const vec3 &uv, const vec3 &n, double etai_over_etat) {
   vec3 r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.length_squared())) * n;
   return r_out_perp + r_out_parallel;
 }
+
+// Cosine-weighted hemisphere sampling for importance sampling
+// Generates samples with probability proportional to cos(theta)
+// This leads to lower variance when combined with Lambertian BRDFs
+vec3 random_cosine_direction() {
+  double r1 = random_double();
+  double r2 = random_double();
+
+  double z = sqrt(1.0 - r2);
+  double phi = 2.0 * PI * r1;
+  double x = cos(phi) * sqrt(r2);
+  double y = sin(phi) * sqrt(r2);
+
+  return vec3(x, y, z);
+}
+
+// Random point in unit disk for depth of field
+vec3 random_in_unit_disk() {
+  while (true) {
+    auto p = vec3(random_double(-1, 1), random_double(-1, 1), 0);
+    if (p.length_squared() >= 1)
+      continue;
+    return p;
+  }
+}
