@@ -6,46 +6,6 @@ on:
       - 'v*'
 
 jobs:
-  build-release:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential libglm-dev zip
-
-      - name: Configure
-        run: cmake --preset default
-
-      - name: Build
-        run: cmake --build build --config Release -- -j2
-
-      - name: Install to staging
-        run: cmake --build build --target install-staging
-
-      - name: Create artifact zip
-        run: |
-          cd build/staging
-          zip -r ../../raytracer-release.zip .
-
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
-        with:
-          files: raytracer-release.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-name: Release
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -56,38 +16,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies (Linux/macOS)
+      - name: Install dependencies
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             sudo apt-get update
-            sudo apt-get install -y build-essential cmake zip
+            sudo apt-get install -y build-essential cmake libglm-dev libpng-dev zip
           else
-            brew update || true
-            brew install cmake zip || true
+            brew install cmake glm libpng zip || true
           fi
 
       - name: Configure (Release)
-        run: |
-          mkdir -p build-${{ matrix.os }}
-          cd build-${{ matrix.os }}
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DREQUIRE_MESHES=OFF -DGENERATE_PLACEHOLDER_MESHES=ON -DUSE_BUNDLED_GLM=ON
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build-${{ matrix.os }} -- -j2
+        run: cmake --build build -- -j2
 
       - name: Install to staging
-        run: cmake --install build-${{ matrix.os }} --prefix build-${{ matrix.os }}/staging
+        run: cmake --install build --prefix build/staging
 
       - name: Archive staging
         run: |
-          cd build-${{ matrix.os }}
-          zip -r ../staging-${{ matrix.os }}.zip staging
+          cd build
+          zip -r ../raytracer-${{ matrix.os }}.zip staging
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: staging-${{ matrix.os }}.zip
-          path: staging-${{ matrix.os }}.zip
+          name: raytracer-${{ matrix.os }}
+          path: raytracer-${{ matrix.os }}.zip
 
   publish:
     name: Publish Release
@@ -100,31 +56,11 @@ jobs:
           path: ./artifacts
 
       - name: List artifacts
-        run: ls -la ./artifacts
+        run: ls -laR ./artifacts
 
       - name: Create GitHub release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-
-      - name: Upload release assets
+          files: artifacts/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
-        run: |
-          set -e
-          cd artifacts
-          for f in ./*.zip; do
-            echo "Uploading $f"
-            u=$(echo "$UPLOAD_URL" | sed -e 's/{?name,label}//')
-            curl -s -X POST "$u?name=$(basename $f)" \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Content-Type: application/zip" \
-              --data-binary "@$f"
-          done
