@@ -1,0 +1,90 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Scene>
+  <Config>
+    <Width value="1280"/>
+    <Height value="720"/>
+    <Samples value="100"/>
+    <Depth value="12"/>
+  </Config>
+  <Camera>
+    <LookFrom x="0" y="3" z="8"/>
+    <LookAt x="0" y="1" z="0"/>
+    <FOV value="45"/>
+  </Camera>
+  <Sun>
+    <Dir x="1" y="1" z="0.5"/>
+    <Intensity value="1.2"/>
+  </Sun>
+  <Materials>
+    <!-- Floor with subtle color -->
+    <Lambertian name="floor">
+      <Color b="0.8" g="0.85" r="0.9"/>
+    </Lambertian>
+    <!-- PBR Bronze (like Buddha statue) -->
+    <PBR name="bronze">
+      <Color b="0.25" g="0.45" r="0.68"/>
+      <Metallic value="0.9"/>
+      <Roughness value="0.35"/>
+    </PBR>
+    <!-- PBR Shiny Metal -->
+    <PBR name="chrome">
+      <Color b="0.95" g="0.95" r="0.95"/>
+      <Metallic value="1.0"/>
+      <Roughness value="0.05"/>
+    </PBR>
+    <!-- SSS Marble (like Roman statue) -->
+    <SSS name="marble">
+      <Color b="0.88" g="0.92" r="0.95"/>
+      <ScatterColor b="0.75" g="0.85" r="1.0"/>
+      <ScatterDistance value="0.3"/>
+    </SSS>
+    <!-- Standard glass -->
+    <Dielectric name="glass">
+      <Color b="1" g="1" r="1"/>
+      <IOR value="1.5"/>
+    </Dielectric>
+    <!-- Light source -->
+    <Emissive name="light">
+      <Color b="0.9" g="0.95" r="1"/>
+      <Strength value="5.0"/>
+    </Emissive>
+  </Materials>
+  <Objects>
+    <!-- Floor plane -->
+    <Triangle material="floor">
+      <Vertex0 x="-10" y="0" z="-10"/>
+      <Vertex1 x="10" y="0" z="-10"/>
+      <Vertex2 x="-10" y="0" z="10"/>
+    </Triangle>
+    <Triangle material="floor">
+      <Vertex0 x="10" y="0" z="-10"/>
+      <Vertex1 x="10" y="0" z="10"/>
+      <Vertex2 x="-10" y="0" z="10"/>
+    </Triangle>
+    <!-- PBR Bronze sphere (left) -->
+    <Sphere material="bronze">
+      <Center x="-2.5" y="1" z="0"/>
+      <Radius value="1"/>
+    </Sphere>
+    <!-- Chrome sphere (center-left) -->
+    <Sphere material="chrome">
+      <Center x="-0.8" y="0.6" z="1.5"/>
+      <Radius value="0.6"/>
+    </Sphere>
+    <!-- SSS Marble sphere (center) -->
+    <Sphere material="marble">
+      <Center x="0" y="1.2" z="0"/>
+      <Radius value="1.2"/>
+    </Sphere>
+    <!-- Glass sphere (right) -->
+    <Sphere material="glass">
+      <Center x="2.5" y="0.8" z="0.5"/>
+      <Radius value="0.8"/>
+    </Sphere>
+    <!-- Light sphere (above) -->
+    <Sphere material="light">
+      <Center x="0" y="5" z="0"/>
+      <Radius value="0.8"/>
+    </Sphere>
+  </Objects>
+</Scene>

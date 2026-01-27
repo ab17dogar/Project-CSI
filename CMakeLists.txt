@@ -11,46 +11,61 @@ set ( CMAKE_CXX_STANDARD 20 )
 ## This CMakeLists now focuses on building the project sources only.
 ## If you need to install or copy assets, add explicit install/copy rules.
 
-set ( HDR 
-        src/3rdParty/tinyxml2/tinyxml2.h
-        src/3rdParty/ObjLoader/OBJ_Loader.h
-        src/engine/camera.h
-        src/engine/config.h
-        src/engine/hittable.h
-        src/engine/sphere.h
-        src/engine/triangle.h
-        src/engine/material.h
-        src/engine/emissive.h
-        src/engine/lambertian.h
-        src/engine/metal.h
-        src/engine/sun.h
-        src/engine/mesh.h
-        src/engine/hittable_list.h
-        src/engine/world.h
-        src/engine/factories/factory_methods.h
-        src/util/vec3.h
-        src/util/ray.h
-        src/defs.h
-    )
+set(RAYTRACER_CORE_HEADERS
+    src/3rdParty/tinyxml2/tinyxml2.h
+    src/3rdParty/ObjLoader/OBJ_Loader.h
+    src/engine/aabb.h
+    src/engine/bvh_node.h
+    src/engine/camera.h
+    src/engine/config.h
+    src/engine/hittable.h
+    src/engine/sphere.h
+    src/engine/triangle.h
+    src/engine/material.h
+    src/engine/emissive.h
+    src/engine/lambertian.h
+    src/engine/metal.h
+    src/engine/sun.h
+    src/engine/mesh.h
+    src/engine/hittable_list.h
+    src/engine/world.h
+    src/engine/render_runner.h
+    src/engine/factories/factory_methods.h
+    src/util/vec3.h
+    src/util/ray.h
+    src/defs.h
+)
 
-set ( SRC 
-        src/3rdParty/tinyxml2/tinyxml2.cpp
-        src/engine/camera.cpp
-        src/engine/config.cpp
-        src/engine/shpere.cpp
-        src/engine/triangle.cpp
-        src/engine/lambertian.cpp
-        src/engine/metal.cpp
-        src/engine/emissive.cpp
-        src/engine/sun.cpp
-        src/engine/mesh.cpp
-        src/engine/hittable_list.cpp
-        src/engine/world.cpp
-        src/engine/factories/factory_methods.cpp
-        src/util/vec3.cpp
-        src/main.cpp
-        src/3rdParty/stb_image_write.cpp
-    )
+set(RAYTRACER_CORE_SOURCES
+    src/3rdParty/tinyxml2/tinyxml2.cpp
+    src/engine/aabb.cpp
+    src/engine/bvh_node.cpp
+    src/engine/camera.cpp
+    src/engine/config.cpp
+    src/engine/shpere.cpp
+    src/engine/triangle.cpp
+    src/engine/lambertian.cpp
+    src/engine/metal.cpp
+    src/engine/emissive.cpp
+    src/engine/dielectric.cpp
+    src/engine/hdri_environment.cpp
+    src/engine/oidn_denoiser.cpp
+    src/engine/gltf_loader.cpp
+    src/engine/sun.cpp
+    src/engine/mesh.cpp
+    src/engine/hittable_list.cpp
+    src/engine/world.cpp
+    src/engine/render_runner.cpp
+    src/engine/factories/factory_methods.cpp
+    src/util/vec3.cpp
+    src/util/logging.cpp
+    src/3rdParty/stb_image_write.cpp
+    src/3rdParty/stb_image_impl.cpp
+)
+
+set(RAYTRACER_CLI_SOURCES
+    src/main.cpp
+)
 
 ## Try to find system-installed GLM; optionally build bundled GLM when requested
 option(USE_BUNDLED_GLM "When ON, build the bundled GLM in src/3rdParty/glm-master if system GLM is not found" OFF)
@@ -70,22 +85,56 @@ endif()
 # PNG support: try to find libpng and link it for real PNG output
 find_package(PNG REQUIRED)
 
-# Executable
-add_executable(${PROJECT_NAME}
-                ${HDR} 
-                ${SRC} 
-            )
+# OIDN support: Intel Open Image Denoise for AI denoising
+# Install via: brew install open-image-denoise
+find_package(OpenImageDenoise QUIET)
+if(OpenImageDenoise_FOUND)
+    message(STATUS "Found OIDN: ${OpenImageDenoise_VERSION}")
+    set(USE_OIDN TRUE)
+else()
+    message(STATUS "OIDN not found - using fallback denoiser")
+    set(USE_OIDN FALSE)
+endif()
+
+add_library(raytracer_core
+        ${RAYTRACER_CORE_HEADERS}
+        ${RAYTRACER_CORE_SOURCES}
+)
+
+target_include_directories(raytracer_core
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/src
+)
 
 # Some GLM features in gtx/* are experimental and require this define
-# to be present before including those headers. Add it for the target so
-# system or bundled GLM usage works without modifying third-party headers.
-target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_ENABLE_EXPERIMENTAL)
+# to be present before including those headers. Keep it on the core library
+# so every consumer (CLI, UI, tests) inherits it automatically.
+target_compile_definitions(raytracer_core PRIVATE GLM_ENABLE_EXPERIMENTAL)
 
-# Link libraries
+# Add OIDN define if available
+if(USE_OIDN)
+    target_compile_definitions(raytracer_core PUBLIC USE_OIDN)
+endif()
+
+# Link libraries needed by the rendering core.
+target_link_libraries(raytracer_core
+    PUBLIC
+        glm::glm
+        PNG::PNG
+)
+
+# Link OIDN if available
+if(USE_OIDN)
+    target_link_libraries(raytracer_core PUBLIC OpenImageDenoise)
+endif()
+
+add_executable(${PROJECT_NAME}
+        ${RAYTRACER_CLI_SOURCES}
+)
+
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-        glm::glm
-    PNG::PNG
+        raytracer_core
 )
 
 # Install rules: binary + assets (source assets directory)
