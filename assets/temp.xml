@@ -7,8 +7,8 @@
         <Max_Depth value="10"/>
     </Config>
     <Camera>
-        <Look_From x="-2.1879916" y="2.9717216" z="8.9144144"/>
-        <Look_at x="0.25649491" y="1.9097009" z="-0.88989127"/>
+        <Look_From x="-0.64787257" y="2.0570986" z="-0.50774753"/>
+        <Look_at x="-0.69981539" y="2.0172238" z="-0.58332485"/>
         <Up x="0" y="1" z="0"/>
         <FOV angle="45"/>
     </Camera>
@@ -59,6 +59,15 @@
             <Color r="1" g="1" b="1"/>
             <IOR value="2.4000001"/>
         </Dielectric>
+        <Lambertian name="OfficeChair_1">
+            <Color r="1" g="1" b="1"/>
+        </Lambertian>
+        <Lambertian name="OfficeChair_2">
+            <Color r="0.043136999" g="0.043136999" b="0.043136999"/>
+        </Lambertian>
+        <Lambertian name="OfficeChair_3">
+            <Color r="0" g="0" b="0"/>
+        </Lambertian>
     </Materials>
     <Objects>
         <Triangle name="Floor1">
@@ -109,6 +118,18 @@
             <V2 x="5" y="0" z="5"/>
             <Material name="wall_white"/>
         </Triangle>
+        <Triangle name="FrontWall1">
+            <V0 x="5" y="0" z="5"/>
+            <V1 x="5" y="6" z="5"/>
+            <V2 x="-5" y="0" z="5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="FrontWall2">
+            <V0 x="5" y="6" z="5"/>
+            <V1 x="-5" y="6" z="5"/>
+            <V2 x="-5" y="0" z="5"/>
+            <Material name="wall_white"/>
+        </Triangle>
         <Triangle name="Ceiling1">
             <V0 x="-5" y="6" z="5"/>
             <V1 x="5" y="6" z="5"/>
@@ -142,5 +163,12 @@
             <Rotation x="0" y="0" z="0"/>
             <Material name="glass"/>
         </Sphere>
+        <Mesh name="officeChair">
+            <Position x="-1.4" y="1.8" z="-1.5"/>
+            <Scale x="0.0099999998" y="0.0099999998" z="0.0099999998"/>
+            <Rotation x="0" y="45" z="0"/>
+            <Material name="OfficeChair_2"/>
+            <File name="/Users/abubakar/Desktop/fyp_raytracer-main/build/../assets/officeChair.obj"/>
+        </Mesh>
     </Objects>
 </ItemContainer>

@@ -94,6 +94,13 @@
       <Rotation x="0" y="0" z="0"/>
       <Material name="lightSource"/>
     </Sphere>
+    <Mesh name="officeChair">
+      <Position x="-2" y="1" z="-5"/>
+      <Scale x="0.01" y="0.01" z="0.01"/>
+      <Rotation x="0" y="-45" z="0"/>
+      <Material name="mattBrown"/>
+      <File name="officeChair.obj"/>
+    </Mesh>
     <!-- <Triangle name="tri01">
             <V0 x="-1" y="1" z="-3" />
             <V1 x="1" y="1" z="-3" />

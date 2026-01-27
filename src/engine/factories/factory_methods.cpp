@@ -400,7 +400,8 @@ shared_ptr<sun> LoadSun(XMLElement *lightsElem) {
 
   shared_ptr<sun> psun = make_shared<sun>();
   psun->direction = dir;
-  psun->sunColor = color;
+  // Apply intensity to sun color so intensity=0 means black sky
+  psun->sunColor = color * intensity;
 
   return psun;
 }

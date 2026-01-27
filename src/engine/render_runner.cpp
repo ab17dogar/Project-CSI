@@ -121,9 +121,23 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
     return sceneWorld.hdri->sample(unit_direction);
   }
 
-  // Default sky gradient
+  // Check if sun is disabled (zero color means sun is off)
+  color sunCol = sceneWorld.psun->sunColor;
+  double sunBrightness = sunCol.x() + sunCol.y() + sunCol.z();
+
+  if (sunBrightness < 0.001) {
+    // Sun is disabled - return black sky
+    return color(0.0, 0.0, 0.0);
+  }
+
+  // Default sky gradient - scale by sun brightness
   auto t = 0.5 * (unit_direction.y() + 1.0);
-  return (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);
+  color skyGradient =
+      (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);
+
+  // Scale sky by sun intensity (normalized)
+  double normalizedBrightness = std::min(1.0, sunBrightness / 3.0);
+  return skyGradient * normalizedBrightness;
 }
 
 } // namespace

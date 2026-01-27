@@ -11,8 +11,6 @@ set ( CMAKE_CXX_STANDARD 20 )
 ## This CMakeLists now focuses on building the project sources only.
 ## If you need to install or copy assets, add explicit install/copy rules.
 
-option(BUILD_QT_UI "Build the Qt6-based graphical UI" OFF)
-
 set(RAYTRACER_CORE_HEADERS
     src/3rdParty/tinyxml2/tinyxml2.h
     src/3rdParty/ObjLoader/OBJ_Loader.h
@@ -138,127 +136,6 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         raytracer_core
 )
-
-if(BUILD_QT_UI)
-    set(CMAKE_AUTOMOC ON)
-    set(CMAKE_AUTORCC ON)
-    set(CMAKE_AUTOUIC ON)
-
-    find_package(Qt6 6.5 COMPONENTS Widgets Gui Concurrent Network Xml OpenGLWidgets REQUIRED)
-
-    set(RAYTRACER_UI_HEADERS
-            src/ui/views/MainWindow.h
-            src/ui/views/RenderSettingsPanel.h
-            src/ui/views/RenderViewportWidget.h
-            src/ui/models/RenderSettingsModel.h
-            src/ui/models/RenderQueueModel.h
-            src/ui/models/PresetRepository.h
-            src/ui/controllers/RenderController.h
-            src/ui/services/RendererService.h
-            src/ui/services/SceneImportService.h
-            src/ui/services/remote/RemoteWorkerConfig.h
-            src/ui/services/remote/RemoteCredentialsStore.h
-            src/ui/services/remote/RemoteDispatchCommon.h
-            src/ui/services/remote/RemoteDispatchClient.h
-            src/ui/services/remote/SshDispatchClient.h
-            src/ui/services/remote/HttpDispatchClient.h
-            src/ui/services/remote/RemoteDispatchManager.h
-            src/ui/views/PresetEditorDialog.h
-            src/ui/views/RemoteCredentialDialog.h
-            src/ui/rendering/ToneMappingPresets.h
-            # Scene Editor - Models
-            src/ui/models/Transform.h
-            src/ui/models/MaterialDefinition.h
-            src/ui/models/SceneNode.h
-            src/ui/models/SceneDocument.h
-            src/ui/models/DesignSpaceFactory.h
-            # Scene Editor - Commands
-            src/ui/commands/Command.h
-            src/ui/commands/CommandHistory.h
-            src/ui/commands/SceneCommands.h
-            # Scene Editor - Controllers
-            src/ui/controllers/ViewportCameraController.h
-            src/ui/controllers/SelectionManager.h
-            # Scene Editor - Views
-            src/ui/views/SceneViewport.h
-            src/ui/views/SceneHierarchyPanel.h
-            src/ui/views/PropertiesPanel.h
-            src/ui/views/SceneEditorWidget.h
-            # Scene Editor - Services
-            src/ui/services/SceneConverter.h
-            # Scene Editor - Serialization
-            src/ui/serialization/SceneSerializer.h
-            src/ui/serialization/XMLSceneSerializer.h
-    )
-
-    set(RAYTRACER_UI_SOURCES
-            src/ui/main.cpp
-            src/ui/views/MainWindow.cpp
-            src/ui/views/RenderSettingsPanel.cpp
-            src/ui/views/RenderViewportWidget.cpp
-            src/ui/models/RenderSettingsModel.cpp
-            src/ui/models/RenderQueueModel.cpp
-            src/ui/models/PresetRepository.cpp
-            src/ui/controllers/RenderController.cpp
-            src/ui/services/RendererService.cpp
-            src/ui/services/SceneImportService.cpp
-            src/ui/services/remote/RemoteWorkerConfig.cpp
-            src/ui/services/remote/RemoteCredentialsStore.cpp
-            src/ui/services/remote/SshDispatchClient.cpp
-            src/ui/services/remote/HttpDispatchClient.cpp
-            src/ui/services/remote/RemoteDispatchManager.cpp
-            src/ui/views/PresetEditorDialog.cpp
-            src/ui/views/RemoteCredentialDialog.cpp
-            src/ui/rendering/ToneMappingPresets.cpp
-            # Scene Editor - Models
-            src/ui/models/Transform.cpp
-            src/ui/models/MaterialDefinition.cpp
-            src/ui/models/SceneNode.cpp
-            src/ui/models/SceneDocument.cpp
-            src/ui/models/DesignSpaceFactory.cpp
-            # Scene Editor - Commands
-            src/ui/commands/CommandHistory.cpp
-            src/ui/commands/SceneCommands.cpp
-            # Scene Editor - Controllers
-            src/ui/controllers/ViewportCameraController.cpp
-            src/ui/controllers/SelectionManager.cpp
-            # Scene Editor - Views
-            src/ui/views/SceneViewport.cpp
-            src/ui/views/SceneHierarchyPanel.cpp
-            src/ui/views/PropertiesPanel.cpp
-            src/ui/views/LightingPanel.cpp
-            src/ui/views/SceneEditorWidget.cpp
-            # Scene Editor - Services
-            src/ui/services/SceneConverter.cpp
-            # Scene Editor - Serialization
-            src/ui/serialization/SceneSerializer.cpp
-            src/ui/serialization/XMLSceneSerializer.cpp
-    )
-
-    add_executable(RaytracerUI
-            ${RAYTRACER_UI_HEADERS}
-            ${RAYTRACER_UI_SOURCES}
-    )
-
-    target_link_libraries(RaytracerUI
-        PRIVATE
-            raytracer_core
-            Qt6::Widgets
-            Qt6::Gui
-            Qt6::Concurrent
-            Qt6::Network
-            Qt6::Xml
-            Qt6::OpenGLWidgets
-    )
-
-    if(APPLE)
-        target_link_libraries(RaytracerUI PRIVATE "-framework Security")
-    endif()
-
-    target_include_directories(RaytracerUI PRIVATE ${CMAKE_SOURCE_DIR}/src)
-
-    install(TARGETS RaytracerUI RUNTIME DESTINATION bin)
-endif()
 
 # Install rules: binary + assets (source assets directory)
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
