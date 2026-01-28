@@ -36,9 +36,24 @@ All improvements implemented and verified!
 
 ---
 
-## Deferred (Future Work)
-- [ ] Progressive rendering display
-- [ ] Render region selection
-- [ ] Material preview sphere
-- [ ] Transform gizmos
+## ✅ Advanced Features (Previously Deferred)
+
+### Progressive Rendering Display
+- [x] Tile-based callbacks emit frameReady
+- [x] Viewport updates during render
+
+### Render Region Selection
+- [x] Rubber-band drag selection
+- [x] regionSelected(QRect) signal
+- [x] Visual overlay with dimensions
+
+### Material Preview Sphere
+- [x] MaterialPreviewWidget class
+- [x] CPU raytraced preview sphere
+- [x] Blinn-Phong + metallic/roughness
+
+### Transform Gizmos
+- [x] TransformGizmo class
+- [x] Translate/Scale modes
+- [x] Axis hit testing + drag
 

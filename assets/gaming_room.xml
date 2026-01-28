@@ -1,0 +1,428 @@
+<?xml version='1.0'?>
+<ItemContainer>
+    <Config>
+        <Width value="1024" />
+        <Aspect_ratio value="1.77777" />
+        <Samples_Per_Pixel value="100" />
+        <Max_Depth value="12" />
+    </Config>
+    
+    <Camera>
+        <!-- Viewpoint inside room looking at gaming desk -->
+        <Look_From x="3" y="2" z="2" />
+        <Look_at x="-2" y="1" z="-3" />
+        <Up x="0" y="1" z="0" />
+        <FOV angle="75" />
+    </Camera>
+    
+    <Lights>
+        <!-- Bright daylight sun coming through windows -->
+        <Sun>
+            <Direction x="-0.5" y="-0.7" z="-0.5" />
+            <Intensity value="1.2" />
+            <Color r="1.0" g="0.95" b="0.9" />
+        </Sun>
+        
+        <!-- Ceiling point lights for indoor illumination -->
+        <PointLight name="Ceiling Light 1" enabled="true">
+            <Position x="-2" y="4.8" z="-2" />
+            <Color r="1.0" g="0.95" b="0.85" />
+            <Intensity value="15.0" />
+        </PointLight>
+        
+        <PointLight name="Ceiling Light 2" enabled="true">
+            <Position x="2" y="4.8" z="-2" />
+            <Color r="1.0" g="0.95" b="0.85" />
+            <Intensity value="15.0" />
+        </PointLight>
+        
+        <PointLight name="Ceiling Light 3" enabled="true">
+            <Position x="0" y="4.8" z="2" />
+            <Color r="1.0" g="0.95" b="0.85" />
+            <Intensity value="15.0" />
+        </PointLight>
+        
+        <!-- RGB accent lights (gaming aesthetic) -->
+        <PointLight name="RGB Red" enabled="true">
+            <Position x="-4.5" y="1" z="-4.5" />
+            <Color r="1.0" g="0.1" b="0.1" />
+            <Intensity value="3.0" />
+        </PointLight>
+        
+        <PointLight name="RGB Blue" enabled="true">
+            <Position x="4.5" y="1" z="-4.5" />
+            <Color r="0.1" g="0.3" b="1.0" />
+            <Intensity value="3.0" />
+        </PointLight>
+    </Lights>
+    
+    <Materials>
+        <!-- Floor - Dark polished wood -->
+        <GGX name="darkWood">
+            <Color r="0.15" g="0.08" b="0.05" />
+            <Roughness value="0.3" />
+            <Metallic value="0.0" />
+        </GGX>
+        
+        <!-- Walls - Light gray matte -->
+        <Lambertian name="wallGray">
+            <Color r="0.85" g="0.85" b="0.88" />
+        </Lambertian>
+        
+        <!-- Ceiling - White matte -->
+        <Lambertian name="ceilingWhite">
+            <Color r="0.95" g="0.95" b="0.95" />
+        </Lambertian>
+        
+        <!-- Glass for windows -->
+        <Dielectric name="glass">
+            <IOR value="1.5" />
+        </Dielectric>
+        
+        <!-- Chrome metal for desk frame/accents -->
+        <Metal name="chrome">
+            <Color r="0.9" g="0.9" b="0.92" />
+            <Fuzz value="0.0" />
+        </Metal>
+        
+        <!-- Brushed aluminum for equipment -->
+        <GGX name="brushedAluminum">
+            <Color r="0.85" g="0.87" b="0.9" />
+            <Roughness value="0.2" />
+            <Metallic value="1.0" />
+        </GGX>
+        
+        <!-- Black matte for desk surface -->
+        <Lambertian name="blackMatte">
+            <Color r="0.05" g="0.05" b="0.05" />
+        </Lambertian>
+        
+        <!-- Gaming chair leather -->
+        <GGX name="blackLeather">
+            <Color r="0.08" g="0.08" b="0.08" />
+            <Roughness value="0.4" />
+            <Metallic value="0.0" />
+        </GGX>
+        
+        <!-- RGB accent material (red) -->
+        <Emissive name="rgbRed">
+            <Color r="1.0" g="0.1" b="0.1" />
+            <Strength value="3.0" />
+        </Emissive>
+        
+        <!-- RGB accent material (blue) -->
+        <Emissive name="rgbBlue">
+            <Color r="0.2" g="0.4" b="1.0" />
+            <Strength value="3.0" />
+        </Emissive>
+        
+        <!-- RGB accent material (green) -->
+        <Emissive name="rgbGreen">
+            <Color r="0.1" g="1.0" b="0.3" />
+            <Strength value="2.0" />
+        </Emissive>
+        
+        <!-- Ceiling light panel -->
+        <Emissive name="ceilingLight">
+            <Color r="1.0" g="0.95" b="0.9" />
+            <Strength value="8.0" />
+        </Emissive>
+        
+        <!-- Monitor screen glow -->
+        <Emissive name="screenGlow">
+            <Color r="0.7" g="0.85" b="1.0" />
+            <Strength value="2.5" />
+        </Emissive>
+        
+        <!-- Plastic (peripherals) -->
+        <GGX name="blackPlastic">
+            <Color r="0.1" g="0.1" b="0.1" />
+            <Roughness value="0.5" />
+            <Metallic value="0.0" />
+        </GGX>
+        
+        <!-- Outside sky blue (visible through window) -->
+        <Lambertian name="skyBlue">
+            <Color r="0.5" g="0.7" b="0.9" />
+        </Lambertian>
+    </Materials>
+    
+    <Objects>
+        <!-- ========== ROOM STRUCTURE ========== -->
+        
+        <!-- Floor (10x10 units) -->
+        <Quad name="Floor">
+            <Position x="-5" y="0" z="-5" />
+            <U x="10" y="0" z="0" />
+            <V x="0" y="0" z="10" />
+            <Material name="darkWood" />
+        </Quad>
+        
+        <!-- Ceiling -->
+        <Quad name="Ceiling">
+            <Position x="-5" y="5" z="5" />
+            <U x="10" y="0" z="0" />
+            <V x="0" y="0" z="-10" />
+            <Material name="ceilingWhite" />
+        </Quad>
+        
+        <!-- Back Wall (behind camera) -->
+        <Quad name="BackWall">
+            <Position x="-5" y="0" z="5" />
+            <U x="10" y="0" z="0" />
+            <V x="0" y="5" z="0" />
+            <Material name="wallGray" />
+        </Quad>
+        
+        <!-- Front Wall (with windows) -->
+        <!-- Left section -->
+        <Quad name="FrontWallLeft">
+            <Position x="-5" y="0" z="-5" />
+            <U x="2" y="0" z="0" />
+            <V x="0" y="5" z="0" />
+            <Material name="wallGray" />
+        </Quad>
+        
+        <!-- Right section -->
+        <Quad name="FrontWallRight">
+            <Position x="3" y="0" z="-5" />
+            <U x="2" y="0" z="0" />
+            <V x="0" y="5" z="0" />
+            <Material name="wallGray" />
+        </Quad>
+        
+        <!-- Top section (above window) -->
+        <Quad name="FrontWallTop">
+            <Position x="-3" y="3.5" z="-5" />
+            <U x="6" y="0" z="0" />
+            <V x="0" y="1.5" z="0" />
+            <Material name="wallGray" />
+        </Quad>
+        
+        <!-- Bottom section (below window) -->
+        <Quad name="FrontWallBottom">
+            <Position x="-3" y="0" z="-5" />
+            <U x="6" y="0" z="0" />
+            <V x="0" y="1" z="0" />
+            <Material name="wallGray" />
+        </Quad>
+        
+        <!-- Left Wall -->
+        <Quad name="LeftWall">
+            <Position x="-5" y="0" z="5" />
+            <U x="0" y="0" z="-10" />
+            <V x="0" y="5" z="0" />
+            <Material name="wallGray" />
+        </Quad>
+        
+        <!-- Right Wall -->
+        <Quad name="RightWall">
+            <Position x="5" y="0" z="-5" />
+            <U x="0" y="0" z="10" />
+            <V x="0" y="5" z="0" />
+            <Material name="wallGray" />
+        </Quad>
+        
+        <!-- ========== GLASS WINDOWS ========== -->
+        
+        <!-- Large window (glass pane) -->
+        <Quad name="Window">
+            <Position x="-3" y="1" z="-4.98" />
+            <U x="6" y="0" z="0" />
+            <V x="0" y="2.5" z="0" />
+            <Material name="glass" />
+        </Quad>
+        
+        <!-- ========== CEILING LIGHT PANELS ========== -->
+        
+        <Quad name="LightPanel1">
+            <Position x="-3" y="4.98" z="-3" />
+            <U x="2" y="0" z="0" />
+            <V x="0" y="0" z="2" />
+            <Material name="ceilingLight" />
+        </Quad>
+        
+        <Quad name="LightPanel2">
+            <Position x="1" y="4.98" z="-3" />
+            <U x="2" y="0" z="0" />
+            <V x="0" y="0" z="2" />
+            <Material name="ceilingLight" />
+        </Quad>
+        
+        <Quad name="LightPanel3">
+            <Position x="-1" y="4.98" z="1" />
+            <U x="2" y="0" z="0" />
+            <V x="0" y="0" z="2" />
+            <Material name="ceilingLight" />
+        </Quad>
+        
+        <!-- ========== GAMING DESK ========== -->
+        
+        <!-- Desk top surface -->
+        <Quad name="DeskTop">
+            <Position x="-3.5" y="0.75" z="-4" />
+            <U x="3" y="0" z="0" />
+            <V x="0" y="0" z="1.2" />
+            <Material name="blackMatte" />
+        </Quad>
+        
+        <!-- Desk front edge (thickness) -->
+        <Quad name="DeskFront">
+            <Position x="-3.5" y="0.72" z="-2.8" />
+            <U x="3" y="0" z="0" />
+            <V x="0" y="0.03" z="0" />
+            <Material name="blackMatte" />
+        </Quad>
+        
+        <!-- Desk leg left (chrome) -->
+        <Sphere name="DeskLegLeft">
+            <Radius value="0.05" />
+            <Position x="-3.3" y="0.35" z="-3.5" />
+            <Scale x="1" y="7" z="1" />
+            <Material name="chrome" />
+        </Sphere>
+        
+        <!-- Desk leg right (chrome) -->
+        <Sphere name="DeskLegRight">
+            <Radius value="0.05" />
+            <Position x="-0.7" y="0.35" z="-3.5" />
+            <Scale x="1" y="7" z="1" />
+            <Material name="chrome" />
+        </Sphere>
+        
+        <!-- ========== MONITOR ========== -->
+        
+        <!-- Monitor screen (emissive) -->
+        <Quad name="MonitorScreen">
+            <Position x="-2.8" y="0.8" z="-3.8" />
+            <U x="1.6" y="0" z="0" />
+            <V x="0" y="0.9" z="0" />
+            <Material name="screenGlow" />
+        </Quad>
+        
+        <!-- Monitor bezel -->
+        <Quad name="MonitorBezel">
+            <Position x="-2.9" y="0.75" z="-3.81" />
+            <U x="1.8" y="0" z="0" />
+            <V x="0" y="1" z="0" />
+            <Material name="blackPlastic" />
+        </Quad>
+        
+        <!-- ========== GAMING CHAIR (Mesh) ========== -->
+        
+        <Mesh name="GamingChair">
+            <Position x="-2" y="0" z="-2" />
+            <Scale x="0.8" y="0.8" z="0.8" />
+            <Rotation x="0" y="180" z="0" />
+            <Material name="blackLeather" />
+            <File name="officeChair.obj" />
+        </Mesh>
+        
+        <!-- ========== RGB ACCENT SPHERES (Gaming aesthetic) ========== -->
+        
+        <!-- RGB strip corner 1 -->
+        <Sphere name="RGBCorner1">
+            <Radius value="0.15" />
+            <Position x="-4.5" y="0.15" z="-4.5" />
+            <Material name="rgbRed" />
+        </Sphere>
+        
+        <!-- RGB strip corner 2 -->
+        <Sphere name="RGBCorner2">
+            <Radius value="0.15" />
+            <Position x="4.5" y="0.15" z="-4.5" />
+            <Material name="rgbBlue" />
+        </Sphere>
+        
+        <!-- RGB strip corner 3 -->
+        <Sphere name="RGBCorner3">
+            <Radius value="0.15" />
+            <Position x="-4.5" y="0.15" z="4.5" />
+            <Material name="rgbGreen" />
+        </Sphere>
+        
+        <!-- ========== GAMING PERIPHERALS ========== -->
+        
+        <!-- Mouse (small sphere) -->
+        <Sphere name="Mouse">
+            <Radius value="0.08" />
+            <Position x="-1.2" y="0.83" z="-3.2" />
+            <Scale x="1.5" y="0.6" z="1" />
+            <Material name="blackPlastic" />
+        </Sphere>
+        
+        <!-- Keyboard (stretched sphere approximation) -->
+        <Sphere name="Keyboard">
+            <Radius value="0.15" />
+            <Position x="-2" y="0.8" z="-3.1" />
+            <Scale x="3" y="0.3" z="1" />
+            <Material name="blackPlastic" />
+        </Sphere>
+        
+        <!-- ========== DECORATIVE ELEMENTS ========== -->
+        
+        <!-- Glass decorative sphere on desk -->
+        <Sphere name="GlassOrb">
+            <Radius value="0.12" />
+            <Position x="-3.2" y="0.92" z="-3.0" />
+            <Material name="glass" />
+        </Sphere>
+        
+        <!-- Chrome decorative sphere -->
+        <Sphere name="ChromeOrb">
+            <Radius value="0.1" />
+            <Position x="-0.9" y="0.85" z="-3.6" />
+            <Material name="chrome" />
+        </Sphere>
+        
+        <!-- Aluminum headphone stand base -->
+        <Sphere name="HeadphoneStand">
+            <Radius value="0.08" />
+            <Position x="-3.4" y="0.83" z="-3.4" />
+            <Scale x="1" y="0.3" z="1" />
+            <Material name="brushedAluminum" />
+        </Sphere>
+        
+        <!-- ========== SIDE TABLE ========== -->
+        
+        <!-- Side table surface -->
+        <Quad name="SideTable">
+            <Position x="2" y="0.5" z="-3" />
+            <U x="1" y="0" z="0" />
+            <V x="0" y="0" z="1" />
+            <Material name="darkWood" />
+        </Quad>
+        
+        <!-- Gaming console (box approximation) -->
+        <Sphere name="Console">
+            <Radius value="0.15" />
+            <Position x="2.5" y="0.65" z="-2.5" />
+            <Scale x="2" y="0.5" z="1.5" />
+            <Material name="blackMatte" />
+        </Sphere>
+        
+        <!-- Console power LED -->
+        <Sphere name="ConsoleLED">
+            <Radius value="0.02" />
+            <Position x="2.2" y="0.58" z="-2.5" />
+            <Material name="rgbBlue" />
+        </Sphere>
+        
+        <!-- ========== FLOOR DECORATIONS ========== -->
+        
+        <!-- Large metal sphere (modern art) -->
+        <Sphere name="ArtSphere">
+            <Radius value="0.4" />
+            <Position x="3.5" y="0.4" z="2" />
+            <Material name="brushedAluminum" />
+        </Sphere>
+        
+        <!-- Glass sphere (decor) -->
+        <Sphere name="GlassDecor">
+            <Radius value="0.25" />
+            <Position x="3" y="0.25" z="3" />
+            <Material name="glass" />
+        </Sphere>
+        
+    </Objects>
+</ItemContainer>

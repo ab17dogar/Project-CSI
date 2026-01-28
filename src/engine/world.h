@@ -58,6 +58,11 @@ public:
 
   // Point lights for artificial indoor lighting
   std::vector<std::shared_ptr<class PointLight>> pointLights;
+
+  // Dynamic sky colors (for interactive rendering)
+  color skyColorTop{0.5, 0.7, 1.0};    // Sky color at zenith
+  color skyColorBottom{1.0, 1.0, 1.0}; // Sky color at horizon
+  color groundColor{0.5, 0.5, 0.5};    // Ground color (below horizon)
 };
 
 #endif

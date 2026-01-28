@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<ItemContainer>
+    <Config>
+        <Width value="800" />
+        <Aspect_ratio value="1.0" />
+        <Samples_Per_Pixel value="100" />
+        <Max_Depth value="10" />
+    </Config>
+    
+    <Camera>
+        <!-- Standard Cornell Box view -->
+        <!-- Adjusting based on typical Cornell Box coordinates (0-555) or normalized (0-1 or -1-1) -->
+        <!-- Based on OBJ check, if it's the standard 0-555 scale, Camera needs to be at ~278, 273, -800 -->
+        <!-- If normalized, ~0, 1, 3. I'll make a best guess and we can adjust if the render is black/empty. -->
+        <!-- Let's assume standard normalized scale for now given other scenes -->
+        <Viewport_Width value="2.0" />
+        <Focal_Length value="1.0" />
+        <Look_From x="0.0" y="1.0" z="2.5" />
+        <Look_at x="0.0" y="1.0" z="0.0" />
+        <Up x="0.0" y="1.0" z="0.0" />
+        <FOV angle="40" />
+    </Camera>
+    
+    <Lights>
+        <!-- Parser requires a Sun element. Setting intensity to 0 for indoor scene. -->
+        <Sun>
+            <Direction x="0.0" y="-1.0" z="0.0" />
+            <Intensity value="0.0" />
+            <Color r="1.0" g="1.0" b="1.0" />
+        </Sun>
+    </Lights>
+    
+    <Materials>
+        <Metal name="gold">
+            <Color r="1.0" g="0.85" b="0.0" />
+            <Fuzz value="0.1" />
+        </Metal>
+        <Lambertian name="greyFloor">
+            <Color r="0.5" g="0.5" b="0.5" />
+        </Lambertian>
+    </Materials>
+    
+    <Objects>
+        <Mesh name="Bunny">
+            <Position x="0.0" y="0.0" z="0.0" />
+            <Scale x="1.0" y="1.0" z="1.0" />
+            <Rotation x="0" y="0" z="0" />
+            <!-- Material in XML overrides OBJ? Usually OBJ material is used if not specified here. -->
+            <!-- We want to use the MTL materials, so we might not specify <Material> tag or use "default" -->
+            <!-- Check parser: if Material name is specified, it might override. -->
+            <!-- I will not specify material name to let the OBJ loader use MTL materials -->
+            <File name="bunny.obj" />
+            <Material name="gold" />
+        </Mesh>
+    </Objects>
+</ItemContainer>

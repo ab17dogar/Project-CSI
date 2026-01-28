@@ -13,6 +13,7 @@
 #include "engine/config.h"
 #include "engine/hdri_environment.h"
 #include "engine/material.h"
+#include "engine/mis.h"
 #include "engine/oidn_denoiser.h"
 #include "engine/point_light.h"
 #include "engine/sun.h"
@@ -80,7 +81,7 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
           result = result * sceneWorld.psun->sunColor;
         }
 
-        // Direct sampling of point lights (Next Event Estimation)
+        // Direct sampling of point lights (Next Event Estimation with MIS)
         for (const auto &light : sceneWorld.pointLights) {
           vec3 toLight = light->position - rec.p;
           double lightDist = toLight.length();
@@ -95,10 +96,28 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
 
           if (!sceneWorld.hit(lightShadowRay, 0.001, lightDist - 0.001,
                               lightShadowRec)) {
-            // Light is visible - calculate contribution
+            // Light is visible - calculate contribution with MIS
             double cosTheta = std::max(0.0, dot(rec.normal, lightDir));
-            double attenuation = light->intensity / (lightDist * lightDist);
-            result = result + light->lightColor * cosTheta * attenuation;
+
+            // PDF for light sampling (point light = delta function
+            // approximation) For proper MIS, we use 1/distance^2 as the
+            // effective PDF
+            double pdf_light = 1.0;
+
+            // PDF for BRDF sampling this direction (cosine-weighted for
+            // diffuse)
+            double pdf_brdf = mis::pdf_cosine_hemisphere(lightDir, rec.normal);
+
+            // MIS weight using power heuristic
+            double mis_weight = mis::power_heuristic(pdf_light, pdf_brdf);
+
+            // Light attenuation (inverse square law)
+            double light_attenuation =
+                light->intensity / (lightDist * lightDist);
+
+            // Apply MIS-weighted contribution
+            result = result + light->lightColor * cosTheta * light_attenuation *
+                                  mis_weight;
           }
         }
       }
@@ -121,15 +140,55 @@ color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
     return sceneWorld.hdri->sample(unit_direction);
   }
 
-  // Default sky gradient
-  auto t = 0.5 * (unit_direction.y() + 1.0);
-  return (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);
+  // Check if sun is disabled (zero color means sun is off)
+  color sunCol = sceneWorld.psun->sunColor;
+  double sunBrightness = sunCol.x() + sunCol.y() + sunCol.z();
+
+  if (sunBrightness < 0.001) {
+    // Sun is disabled - return black sky
+    return color(0.0, 0.0, 0.0);
+  }
+
+  // Separate sky and ground based on ray direction
+  double y = unit_direction.y();
+
+  color result;
+  if (y > 0.0) {
+    // SKY: Above horizon - blend from horizon to zenith
+    double t = y; // 0 at horizon, 1 at zenith
+    result = (1.0 - t) * sceneWorld.skyColorBottom + t * sceneWorld.skyColorTop;
+  } else {
+    // GROUND: Below horizon - use ground color with slight fade
+    double t =
+        std::min(1.0, -y * 2.0); // 0 at horizon, 1 when looking straight down
+    result = (1.0 - t) * sceneWorld.skyColorBottom + t * sceneWorld.groundColor;
+  }
+
+  // Scale by sun intensity (normalized)
+  double normalizedBrightness = std::min(1.0, sunBrightness / 3.0);
+  return result * normalizedBrightness;
 }
 
 } // namespace
 
 color TraceRay(const ray &r, int depth, world &sceneWorld) {
   return TraceRayInternal(r, depth, sceneWorld);
+}
+
+color RenderPixel(world &sceneWorld, int x, int y, int sampleIndex) {
+  const int width = sceneWorld.GetImageWidth();
+  const int height = sceneWorld.GetImageHeight();
+  std::shared_ptr<camera> cam = sceneWorld.pcamera;
+
+  // Use sample index for deterministic jittering
+  thread_local std::mt19937 gen(std::random_device{}());
+  std::uniform_real_distribution<double> dist(0.0, 1.0);
+
+  const double u = (x + dist(gen)) / static_cast<double>(width - 1);
+  const double v = (y + dist(gen)) / static_cast<double>(height - 1);
+  const ray r = cam->get_ray(u, v);
+
+  return TraceRayInternal(r, sceneWorld.GetMaxDepth(), sceneWorld);
 }
 
 void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,

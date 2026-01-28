@@ -1,0 +1,158 @@
+<?xml version="1.0"?>
+<ItemContainer>
+    <Config>
+        <Width value="1200" />
+        <Aspect_ratio value="1.77777" />
+        <Samples_Per_Pixel value="100" />
+        <Max_Depth value="12" />
+    </Config>
+    <Camera>
+        <Viewport_Width value="3.0" />
+        <Focal_Length value="1.0" />
+        <Look_From  x="0.0" y="2.0" z="5.0" />
+        <Look_at    x="0.0" y="0.5" z="0.0" />
+        <Up         x="0.0" y="1.0" z="0.0" />
+        <FOV        angle="60" />
+    </Camera>
+    <Lights>
+        <Sun>
+            <Direction x="0.5" y="1.0" z="0.3" />
+            <Intensity value="1.2" />
+            <Color r="1.0" g="0.95" b="0.9" />
+        </Sun>
+        <PointLights>
+            <PointLight name="keyLight">
+                <Position x="3.0" y="4.0" z="2.0" />
+                <Color r="1.0" g="0.98" b="0.95" />
+                <Intensity value="15.0" />
+            </PointLight>
+        </PointLights>
+    </Lights>
+    <Materials>
+        <!-- Ground -->
+        <Lambertian name="ground">
+            <Color r="0.3" g="0.3" b="0.35" />
+        </Lambertian>
+        
+        <!-- Standard Materials (Old) -->
+        <Lambertian name="diffuseRed">
+            <Color r="0.85" g="0.2" b="0.2" />
+        </Lambertian>
+        <Metal name="oldMirror">
+            <Color r="0.95" g="0.95" b="0.95" />
+            <Fuzz value="0.0" />
+        </Metal>
+        <Metal name="oldBrushedMetal">
+            <Color r="0.8" g="0.8" b="0.8" />
+            <Fuzz value="0.4" />
+        </Metal>
+        <Metal name="oldGold">
+            <Color r="1.0" g="0.84" b="0.0" />
+            <Fuzz value="0.1" />
+        </Metal>
+        
+        <!-- GGX Materials (New - Photorealistic) -->
+        <!-- Note: These use the same Metal type but GGX handles roughness better -->
+        <Metal name="ggxChrome">
+            <Color r="0.95" g="0.95" b="0.98" />
+            <Fuzz value="0.02" />
+        </Metal>
+        <Metal name="ggxBrushed">
+            <Color r="0.75" g="0.75" b="0.78" />
+            <Fuzz value="0.25" />
+        </Metal>
+        <Metal name="ggxGold">
+            <Color r="1.0" g="0.78" b="0.35" />
+            <Fuzz value="0.08" />
+        </Metal>
+        <Metal name="ggxCopper">
+            <Color r="0.95" g="0.64" b="0.54" />
+            <Fuzz value="0.15" />
+        </Metal>
+        
+        <!-- Emissive for lighting reference -->
+        <Emissive name="lightSource">
+            <Color r="1.0" g="0.95" b="0.8" />
+            <Intensity value="5.0" />
+        </Emissive>
+    </Materials>
+    <Objects>
+        <!-- Ground plane (large sphere) -->
+        <Sphere name="ground_sphere">
+            <Radius     value="100.0" />
+            <Position   x="0.0" y="-100.0" z="0.0" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="ground" />
+        </Sphere>
+        
+        <!-- Row 1: Standard Metal materials -->
+        <Sphere name="oldMirror_sphere">
+            <Radius     value="0.5" />
+            <Position   x="-2.0" y="0.5" z="0.0" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="oldMirror" />
+        </Sphere>
+        <Sphere name="oldBrushed_sphere">
+            <Radius     value="0.5" />
+            <Position   x="-0.7" y="0.5" z="0.0" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="oldBrushedMetal" />
+        </Sphere>
+        <Sphere name="oldGold_sphere">
+            <Radius     value="0.5" />
+            <Position   x="0.7" y="0.5" z="0.0" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="oldGold" />
+        </Sphere>
+        <Sphere name="diffuseRed_sphere">
+            <Radius     value="0.5" />
+            <Position   x="2.0" y="0.5" z="0.0" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="diffuseRed" />
+        </Sphere>
+        
+        <!-- Row 2: GGX-style Metal materials (back row) -->
+        <Sphere name="ggxChrome_sphere">
+            <Radius     value="0.5" />
+            <Position   x="-2.0" y="0.5" z="-1.5" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="ggxChrome" />
+        </Sphere>
+        <Sphere name="ggxBrushed_sphere">
+            <Radius     value="0.5" />
+            <Position   x="-0.7" y="0.5" z="-1.5" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="ggxBrushed" />
+        </Sphere>
+        <Sphere name="ggxGold_sphere">
+            <Radius     value="0.5" />
+            <Position   x="0.7" y="0.5" z="-1.5" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="ggxGold" />
+        </Sphere>
+        <Sphere name="ggxCopper_sphere">
+            <Radius     value="0.5" />
+            <Position   x="2.0" y="0.5" z="-1.5" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="ggxCopper" />
+        </Sphere>
+        
+        <!-- Light reference sphere -->
+        <Sphere name="light_sphere">
+            <Radius     value="0.3" />
+            <Position   x="0.0" y="2.5" z="-1.0" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="lightSource" />
+        </Sphere>
+    </Objects>
+</ItemContainer>

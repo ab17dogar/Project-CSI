@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<ItemContainer>
+    <Config>
+        <Width value="100" />
+        <Aspect_ratio value="1.0" />
+        <Samples_Per_Pixel value="1" />
+        <Max_Depth value="2" />
+    </Config>
+    
+    <Camera>
+        <Look_From x="0.0" y="0.0" z="2.0" />
+        <Look_at x="0.5" y="0.5" z="0.0" />
+        <Up x="0.0" y="1.0" z="0.0" />
+        <FOV angle="60" />
+    </Camera>
+    
+    <Lights>
+        <Sun>
+            <Direction x="0.0" y="-1.0" z="0.0" />
+            <Intensity value="1.0" />
+            <Color r="1.0" g="1.0" b="1.0" />
+        </Sun>
+    </Lights>
+    
+    <Objects>
+        <Mesh name="triangle">
+            <Position x="0.0" y="0.0" z="-1.0" />
+            <Material name="matt" />
+            <File name="debug_triangle.obj" />
+        </Mesh>
+    </Objects>
+    
+    <Materials>
+       <Lambertian name="matt">
+            <Color r="0.8" g="0.2" b="0.2" />
+       </Lambertian>
+    </Materials>
+</ItemContainer>

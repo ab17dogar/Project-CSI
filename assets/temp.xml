@@ -7,8 +7,8 @@
         <Max_Depth value="10"/>
     </Config>
     <Camera>
-        <Look_From x="-2.1879916" y="2.9717216" z="8.9144144"/>
-        <Look_at x="0.25649491" y="1.9097009" z="-0.88989127"/>
+        <Look_From x="4.0563827" y="5.8320336" z="3.4244263"/>
+        <Look_at x="-0.77829516" y="1.906425" z="-0.77829522"/>
         <Up x="0" y="1" z="0"/>
         <FOV angle="45"/>
     </Camera>
@@ -107,6 +107,18 @@
             <V0 x="5" y="6" z="-5"/>
             <V1 x="5" y="6" z="5"/>
             <V2 x="5" y="0" z="5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="FrontWall1">
+            <V0 x="5" y="0" z="5"/>
+            <V1 x="5" y="6" z="5"/>
+            <V2 x="-5" y="0" z="5"/>
+            <Material name="wall_white"/>
+        </Triangle>
+        <Triangle name="FrontWall2">
+            <V0 x="5" y="6" z="5"/>
+            <V1 x="-5" y="6" z="5"/>
+            <V2 x="-5" y="0" z="5"/>
             <Material name="wall_white"/>
         </Triangle>
         <Triangle name="Ceiling1">

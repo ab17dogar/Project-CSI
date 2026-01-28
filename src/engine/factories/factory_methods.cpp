@@ -13,6 +13,7 @@
 #include "../config.h"
 #include "../dielectric.h"
 #include "../emissive.h"
+#include "../ggx_material.h"
 #include "../gltf_loader.h"
 #include "../hdri_environment.h"
 #include "../lambertian.h"
@@ -21,6 +22,7 @@
 #include "../metal.h"
 #include "../pbr_material.h"
 #include "../point_light.h"
+#include "../quad.h"
 #include "../sphere.h"
 #include "../sss_material.h"
 #include "../sun.h"
@@ -48,6 +50,7 @@ vector<shared_ptr<hittable>> LoadObjects(XMLElement *objectsElem);
 shared_ptr<hittable> LoadSphere(XMLElement *sphereElem);
 shared_ptr<hittable> LoadMesh(XMLElement *meshElem);
 shared_ptr<hittable> LoadTriangle(XMLElement *triangleElem);
+shared_ptr<hittable> LoadQuad(XMLElement *quadElem);
 shared_ptr<material> LoadMaterial(string name);
 
 namespace {
@@ -400,7 +403,8 @@ shared_ptr<sun> LoadSun(XMLElement *lightsElem) {
 
   shared_ptr<sun> psun = make_shared<sun>();
   psun->direction = dir;
-  psun->sunColor = color;
+  // Apply intensity to sun color so intensity=0 means black sky
+  psun->sunColor = color * intensity;
 
   return psun;
 }
@@ -422,6 +426,10 @@ vector<shared_ptr<hittable>> LoadObjects(XMLElement *objectsElem) {
         list.push_back(obj);
     } else if (type == "Triangle") {
       auto obj = LoadTriangle(item);
+      if (obj)
+        list.push_back(obj);
+    } else if (type == "Quad") {
+      auto obj = LoadQuad(item);
       if (obj)
         list.push_back(obj);
     } else if (type == "GLTF") {
@@ -618,6 +626,66 @@ shared_ptr<hittable> LoadTriangle(XMLElement *triangleElem) {
       vec3(v0.x(), v0.y(), v0.z()), vec3(v1.x(), v1.y(), v1.z()),
       vec3(v2.x(), v2.y(), v2.z()), material);
   return ptriangle;
+}
+
+shared_ptr<hittable> LoadQuad(XMLElement *quadElem) {
+  if (!quadElem) {
+    cerr << "LoadQuad: null quad element" << endl;
+    return shared_ptr<hittable>();
+  }
+
+  // Position (corner point Q)
+  float x = 0.0f, y = 0.0f, z = 0.0f;
+  XMLElement *posElem = quadElem->FirstChildElement("Position");
+  if (posElem) {
+    if (posElem->Attribute("x"))
+      x = atof(posElem->Attribute("x"));
+    if (posElem->Attribute("y"))
+      y = atof(posElem->Attribute("y"));
+    if (posElem->Attribute("z"))
+      z = atof(posElem->Attribute("z"));
+  }
+  point3 Q(x, y, z);
+
+  // Edge vector U
+  x = 1.0f;
+  y = 0.0f;
+  z = 0.0f;
+  XMLElement *uElem = quadElem->FirstChildElement("U");
+  if (uElem) {
+    if (uElem->Attribute("x"))
+      x = atof(uElem->Attribute("x"));
+    if (uElem->Attribute("y"))
+      y = atof(uElem->Attribute("y"));
+    if (uElem->Attribute("z"))
+      z = atof(uElem->Attribute("z"));
+  }
+  vec3 u(x, y, z);
+
+  // Edge vector V
+  x = 0.0f;
+  y = 0.0f;
+  z = 1.0f;
+  XMLElement *vElem = quadElem->FirstChildElement("V");
+  if (vElem) {
+    if (vElem->Attribute("x"))
+      x = atof(vElem->Attribute("x"));
+    if (vElem->Attribute("y"))
+      y = atof(vElem->Attribute("y"));
+    if (vElem->Attribute("z"))
+      z = atof(vElem->Attribute("z"));
+  }
+  vec3 v(x, y, z);
+
+  // Material
+  string materialName;
+  XMLElement *materialElem = quadElem->FirstChildElement("Material");
+  if (materialElem && materialElem->Attribute("name")) {
+    materialName = materialElem->Attribute("name");
+  }
+  auto mat = LoadMaterial(materialName);
+
+  return make_shared<quad>(Q, u, v, mat);
 }
 
 shared_ptr<hittable> LoadMesh(XMLElement *meshElem) {
@@ -914,6 +982,18 @@ void LoadMaterials(XMLElement *materialsElem) {
       }
       mat =
           make_shared<sss_material>(color(r, g, b), scatter_col, scatter_dist);
+    } else if (type == "GGX") {
+      // GGX microfacet BRDF material
+      float metallic = 0.0f, roughness = 0.5f;
+      XMLElement *metallicElem = item->FirstChildElement("Metallic");
+      if (metallicElem && metallicElem->Attribute("value")) {
+        metallic = atof(metallicElem->Attribute("value"));
+      }
+      XMLElement *roughnessElem = item->FirstChildElement("Roughness");
+      if (roughnessElem && roughnessElem->Attribute("value")) {
+        roughness = atof(roughnessElem->Attribute("value"));
+      }
+      mat = make_shared<ggx_material>(color(r, g, b), roughness, metallic);
     }
 
     if (mat) {
