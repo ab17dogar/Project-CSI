@@ -2,67 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential libglm-dev
-
-      - name: Configure (CMake preset)
-        run: cmake --preset default
-
-      - name: Build
-        run: cmake --build build -- -j2
-
-      - name: Run (smoke test)
-        run: ./build/Raytracer || true
-name: CI
-
-on:
-  push:
-    # Run automatically when commits are pushed to the main branch (e.g. merges)
     branches:
       - main
 
   pull_request:
-    # Run automatically for pull requests that target the main branch
     branches:
       - main
 
-  # Keep manual dispatch so you still get the "Run workflow" button
   workflow_dispatch:
-    inputs:
-      CMAKE_PRESET:
-        description: 'CMake preset to use (e.g. require-meshes, default)'
-        required: false
-        default: 'require-meshes'
-      USE_BUNDLED_GLM:
-        description: 'Use bundled GLM (ON/OFF)'
-        required: false
-        default: 'OFF'
-      GENERATE_PLACEHOLDER_MESHES:
-        description: 'Generate placeholder meshes during configure (ON/OFF)'
-        required: false
-        default: 'ON'
-      REQUIRE_MESHES:
-        description: 'Fail configure if meshes are missing (ON/OFF)'
-        required: false
-        default: 'OFF'
-      BUILD_TYPE:
-        description: 'CMake build type (Release/Debug)'
-        required: false
-        default: 'Release'
 
 jobs:
   build:
@@ -80,13 +27,13 @@ jobs:
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             sudo apt-get update
-            sudo apt-get install -y build-essential cmake libglm-dev
+            sudo apt-get install -y build-essential cmake libglm-dev libpng-dev
           else
-            brew install cmake glm
+            brew install cmake glm libpng
           fi
 
       - name: Cache CMake build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             build
@@ -95,68 +42,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cmake-
 
-      - name: Configure (preset + placeholders)
-        env:
-          CMAKE_PRESET: ${{ github.event.inputs.CMAKE_PRESET || 'require-meshes' }}
-          USE_BUNDLED_GLM: ${{ github.event.inputs.USE_BUNDLED_GLM || 'OFF' }}
-          GENERATE_PLACEHOLDER_MESHES: ${{ github.event.inputs.GENERATE_PLACEHOLDER_MESHES || 'ON' }}
-          REQUIRE_MESHES: ${{ github.event.inputs.REQUIRE_MESHES || 'OFF' }}
-          BUILD_TYPE: ${{ github.event.inputs.BUILD_TYPE || 'Release' }}
-        run: |
-          echo "Using CMake preset: ${CMAKE_PRESET}"
-          cmake --preset "${CMAKE_PRESET}" -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DGENERATE_PLACEHOLDER_MESHES=${GENERATE_PLACEHOLDER_MESHES} -DUSE_BUNDLED_GLM=${USE_BUNDLED_GLM} -DREQUIRE_MESHES=${REQUIRE_MESHES}
+      - name: Configure
+        run: cmake --preset default
 
       - name: Build
         run: cmake --build build -- -j2
 
-      - name: Run under LLDB and capture output
-        run: |
-          cd build
-          # Run under lldb in batch mode to get a backtrace if a crash occurs
-          lldb --batch -o run -o bt -- ./Raytracer > run.log 2>&1 || true
-          echo "--- Program output ---"
-          tail -n +1 run.log || true
-
-      - name: Upload run log
-        uses: actions/upload-artifact@v4
-        with:
-          name: raytracer-run-log
-          path: build/run.log
-
-  asan:
-    runs-on: ubuntu-latest
-    env:
-      USE_BUNDLED_GLM: ${{ github.event.inputs.USE_BUNDLED_GLM || 'OFF' }}
-      GENERATE_PLACEHOLDER_MESHES: ${{ github.event.inputs.GENERATE_PLACEHOLDER_MESHES || 'ON' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install dependencies (clang + glm)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake libglm-dev build-essential
-
-      - name: Configure (ASAN)
-        run: |
-          mkdir -p build-asan
-          cd build-asan
-          CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Debug -DGENERATE_PLACEHOLDER_MESHES=${GENERATE_PLACEHOLDER_MESHES} -DUSE_BUNDLED_GLM=${USE_BUNDLED_GLM} -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
-
-      - name: Build (ASAN)
-        run: |
-          cd build-asan
-          cmake --build . -- -j2
-
-      - name: Run under ASAN and capture output
-        run: |
-          cd build-asan
-          ./Raytracer > run-asan.log 2>&1 || true
-          echo "--- ASAN Program output ---"
-          tail -n +1 run-asan.log || true
-
-      - name: Upload ASAN log
-        uses: actions/upload-artifact@v4
-        with:
-          name: raytracer-asan-log
-          path: build-asan/run-asan.log
+      - name: Run (smoke test)
+        run: ./build/Raytracer --help

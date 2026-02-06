@@ -12,15 +12,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential libglm-dev
+          sudo apt-get install -y cmake build-essential libglm-dev libpng-dev
 
       - name: Cache CMake build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             build
@@ -42,4 +42,4 @@ jobs:
       - name: Run (ASAN smoke)
         env:
           ASAN_OPTIONS: detect_leaks=1
-        run: ./build/Raytracer || true
+        run: ./build/Raytracer --help
