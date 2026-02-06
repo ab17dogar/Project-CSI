@@ -233,7 +233,7 @@ Physically accurate BRDF with:
 
 **Supervisor:** Professor Olivier Staadt  
 **Institution:** University of Rostock  
-**Course:** Visual Computing (12 ECTS)
+**Course:** Project CSI - Visual and Analytical Computing (12 ECTS)
 
 ---
 
