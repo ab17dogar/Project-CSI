@@ -1,0 +1,293 @@
+<?xml version="1.0"?>
+<ItemContainer>
+    <Config>
+        <Width value="1600" />
+        <Aspect_ratio value="1.0" />
+        <Samples_Per_Pixel value="100" />
+        <Max_Depth value="15" />
+    </Config>
+    <Camera>
+        <Viewport_Width value="3.0" />
+        <Focal_Length value="1.0" />
+        <!-- Bird's eye view - camera looking straight down -->
+        <Look_From  x="0.0" y="25.0" z="0.1" />
+        <Look_at    x="0.0" y="0.0" z="0.0" />
+        <Up         x="0.0" y="0.0" z="-1.0" />
+        <FOV        angle="50" />
+        <!-- Depth of Field for realism -->
+        <Aperture value="0.1" />
+        <Focus_Distance value="25.0" />
+    </Camera>
+    <Lights>
+        <Sun>
+            <!-- 45 degree angle from top -->
+            <Direction x="0.707" y="0.707" z="0.0" />
+            <Intensity value="1.5" />
+            <Color r="1.0" g="0.98" b="0.92" />
+        </Sun>
+        <PointLights>
+            <PointLight name="fillLight1">
+                <Position x="-8.0" y="10.0" z="-8.0" />
+                <Color r="0.8" g="0.85" b="1.0" />
+                <Intensity value="30.0" />
+            </PointLight>
+            <PointLight name="fillLight2">
+                <Position x="8.0" y="10.0" z="8.0" />
+                <Color r="1.0" g="0.9" b="0.8" />
+                <Intensity value="25.0" />
+            </PointLight>
+        </PointLights>
+    </Lights>
+    <Materials>
+        <!-- Ground -->
+        <Lambertian name="groundGray">
+            <Color r="0.15" g="0.15" b="0.18" />
+        </Lambertian>
+        
+        <!-- ===== LAMBERTIAN (Diffuse) Materials ===== -->
+        <Lambertian name="diffuseRed">
+            <Color r="0.85" g="0.15" b="0.15" />
+        </Lambertian>
+        <Lambertian name="diffuseGreen">
+            <Color r="0.15" g="0.75" b="0.25" />
+        </Lambertian>
+        <Lambertian name="diffuseBlue">
+            <Color r="0.2" g="0.3" b="0.85" />
+        </Lambertian>
+        <Lambertian name="diffuseYellow">
+            <Color r="0.9" g="0.85" b="0.2" />
+        </Lambertian>
+        <Lambertian name="diffusePurple">
+            <Color r="0.6" g="0.2" b="0.7" />
+        </Lambertian>
+        <Lambertian name="diffuseOrange">
+            <Color r="0.95" g="0.5" b="0.1" />
+        </Lambertian>
+        <Lambertian name="diffuseCyan">
+            <Color r="0.1" g="0.8" b="0.85" />
+        </Lambertian>
+        <Lambertian name="diffusePink">
+            <Color r="0.95" g="0.4" b="0.6" />
+        </Lambertian>
+        <Lambertian name="diffuseBrown">
+            <Color r="0.5" g="0.3" b="0.15" />
+        </Lambertian>
+        <Lambertian name="diffuseWhite">
+            <Color r="0.9" g="0.9" b="0.9" />
+        </Lambertian>
+        
+        <!-- ===== METAL Materials ===== -->
+        <Metal name="mirrorSilver">
+            <Color r="0.97" g="0.97" b="0.98" />
+            <Fuzz value="0.0" />
+        </Metal>
+        <Metal name="brushedSilver">
+            <Color r="0.8" g="0.8" b="0.85" />
+            <Fuzz value="0.3" />
+        </Metal>
+        <Metal name="polishedGold">
+            <Color r="1.0" g="0.84" b="0.0" />
+            <Fuzz value="0.02" />
+        </Metal>
+        <Metal name="roughGold">
+            <Color r="0.95" g="0.75" b="0.1" />
+            <Fuzz value="0.4" />
+        </Metal>
+        <Metal name="polishedCopper">
+            <Color r="0.95" g="0.64" b="0.54" />
+            <Fuzz value="0.05" />
+        </Metal>
+        <Metal name="brushedCopper">
+            <Color r="0.85" g="0.55" b="0.45" />
+            <Fuzz value="0.35" />
+        </Metal>
+        <Metal name="chrome">
+            <Color r="0.75" g="0.78" b="0.85" />
+            <Fuzz value="0.0" />
+        </Metal>
+        <Metal name="aluminum">
+            <Color r="0.91" g="0.92" b="0.92" />
+            <Fuzz value="0.15" />
+        </Metal>
+        <Metal name="bronze">
+            <Color r="0.8" g="0.5" b="0.2" />
+            <Fuzz value="0.2" />
+        </Metal>
+        <Metal name="titanium">
+            <Color r="0.54" g="0.5" b="0.5" />
+            <Fuzz value="0.1" />
+        </Metal>
+        
+        <!-- ===== DIELECTRIC (Glass) Materials ===== -->
+        <Dielectric name="glass">
+            <Refraction_Index value="1.5" />
+        </Dielectric>
+        <Dielectric name="diamond">
+            <Refraction_Index value="2.4" />
+        </Dielectric>
+        <Dielectric name="water">
+            <Refraction_Index value="1.33" />
+        </Dielectric>
+        <Dielectric name="crystal">
+            <Refraction_Index value="1.8" />
+        </Dielectric>
+        
+        <!-- ===== EMISSIVE Materials ===== -->
+        <Emissive name="glowRed">
+            <Color r="1.0" g="0.2" b="0.1" />
+            <Intensity value="4.0" />
+        </Emissive>
+        <Emissive name="glowBlue">
+            <Color r="0.2" g="0.4" b="1.0" />
+            <Intensity value="4.0" />
+        </Emissive>
+        <Emissive name="glowGreen">
+            <Color r="0.2" g="1.0" b="0.3" />
+            <Intensity value="3.5" />
+        </Emissive>
+        <Emissive name="glowWhite">
+            <Color r="1.0" g="0.98" b="0.9" />
+            <Intensity value="5.0" />
+        </Emissive>
+        <Emissive name="glowPurple">
+            <Color r="0.7" g="0.2" b="1.0" />
+            <Intensity value="4.0" />
+        </Emissive>
+        <Emissive name="glowOrange">
+            <Color r="1.0" g="0.6" b="0.1" />
+            <Intensity value="3.5" />
+        </Emissive>
+    </Materials>
+    <Objects>
+        <!-- Ground plane -->
+        <Sphere name="ground">
+            <Radius     value="500.0" />
+            <Position   x="0.0" y="-500.0" z="0.0" />
+            <Scale      x="1.0" y="1.0" z="1.0" />
+            <Rotation   x="0" y="0" z="0" />
+            <Material   name="groundGray" />
+        </Sphere>
+        
+        <!-- ===== ROW 1: Diffuse materials (z = -8) ===== -->
+        <Sphere name="s1"><Radius value="0.5" /><Position x="-8.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseRed" /></Sphere>
+        <Sphere name="s2"><Radius value="0.5" /><Position x="-6.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseGreen" /></Sphere>
+        <Sphere name="s3"><Radius value="0.5" /><Position x="-4.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseBlue" /></Sphere>
+        <Sphere name="s4"><Radius value="0.5" /><Position x="-2.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseYellow" /></Sphere>
+        <Sphere name="s5"><Radius value="0.5" /><Position x="0.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffusePurple" /></Sphere>
+        <Sphere name="s6"><Radius value="0.5" /><Position x="2.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseOrange" /></Sphere>
+        <Sphere name="s7"><Radius value="0.5" /><Position x="4.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseCyan" /></Sphere>
+        <Sphere name="s8"><Radius value="0.5" /><Position x="6.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffusePink" /></Sphere>
+        <Sphere name="s9"><Radius value="0.5" /><Position x="8.0" y="0.5" z="-8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseBrown" /></Sphere>
+        <Sphere name="s10"><Radius value="0.5" /><Position x="-7.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseWhite" /></Sphere>
+        
+        <!-- ===== ROW 2: Metal mirrors (z = -6) ===== -->
+        <Sphere name="s11"><Radius value="0.5" /><Position x="-5.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="mirrorSilver" /></Sphere>
+        <Sphere name="s12"><Radius value="0.5" /><Position x="-3.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="chrome" /></Sphere>
+        <Sphere name="s13"><Radius value="0.5" /><Position x="-1.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="polishedGold" /></Sphere>
+        <Sphere name="s14"><Radius value="0.5" /><Position x="1.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="polishedCopper" /></Sphere>
+        <Sphere name="s15"><Radius value="0.5" /><Position x="3.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="aluminum" /></Sphere>
+        <Sphere name="s16"><Radius value="0.5" /><Position x="5.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="titanium" /></Sphere>
+        <Sphere name="s17"><Radius value="0.5" /><Position x="7.0" y="0.5" z="-6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="bronze" /></Sphere>
+        <Sphere name="s18"><Radius value="0.5" /><Position x="-8.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="brushedSilver" /></Sphere>
+        <Sphere name="s19"><Radius value="0.5" /><Position x="-6.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="roughGold" /></Sphere>
+        <Sphere name="s20"><Radius value="0.5" /><Position x="-4.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="brushedCopper" /></Sphere>
+        
+        <!-- ===== ROW 3: Glass/Dielectric (z = -4 to -2) ===== -->
+        <Sphere name="s21"><Radius value="0.5" /><Position x="-2.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+        <Sphere name="s22"><Radius value="0.5" /><Position x="0.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diamond" /></Sphere>
+        <Sphere name="s23"><Radius value="0.5" /><Position x="2.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="water" /></Sphere>
+        <Sphere name="s24"><Radius value="0.5" /><Position x="4.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="crystal" /></Sphere>
+        <Sphere name="s25"><Radius value="0.5" /><Position x="6.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+        <Sphere name="s26"><Radius value="0.5" /><Position x="8.0" y="0.5" z="-4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diamond" /></Sphere>
+        <Sphere name="s27"><Radius value="0.5" /><Position x="-7.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="crystal" /></Sphere>
+        <Sphere name="s28"><Radius value="0.5" /><Position x="-5.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="water" /></Sphere>
+        <Sphere name="s29"><Radius value="0.5" /><Position x="-3.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+        <Sphere name="s30"><Radius value="0.5" /><Position x="-1.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diamond" /></Sphere>
+        
+        <!-- ===== ROW 4: Emissive (z = -2 to 0) ===== -->
+        <Sphere name="s31"><Radius value="0.5" /><Position x="1.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowRed" /></Sphere>
+        <Sphere name="s32"><Radius value="0.5" /><Position x="3.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowBlue" /></Sphere>
+        <Sphere name="s33"><Radius value="0.5" /><Position x="5.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowGreen" /></Sphere>
+        <Sphere name="s34"><Radius value="0.5" /><Position x="7.0" y="0.5" z="-2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowWhite" /></Sphere>
+        <Sphere name="s35"><Radius value="0.5" /><Position x="-8.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowPurple" /></Sphere>
+        <Sphere name="s36"><Radius value="0.5" /><Position x="-6.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowOrange" /></Sphere>
+        <Sphere name="s37"><Radius value="0.5" /><Position x="-4.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowRed" /></Sphere>
+        <Sphere name="s38"><Radius value="0.5" /><Position x="-2.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowBlue" /></Sphere>
+        <Sphere name="s39"><Radius value="0.5" /><Position x="0.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowGreen" /></Sphere>
+        <Sphere name="s40"><Radius value="0.5" /><Position x="2.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowWhite" /></Sphere>
+        
+        <!-- ===== ROW 5: Mixed materials (z = 0 to 2) ===== -->
+        <Sphere name="s41"><Radius value="0.5" /><Position x="4.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseRed" /></Sphere>
+        <Sphere name="s42"><Radius value="0.5" /><Position x="6.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="mirrorSilver" /></Sphere>
+        <Sphere name="s43"><Radius value="0.5" /><Position x="8.0" y="0.5" z="0.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+        <Sphere name="s44"><Radius value="0.5" /><Position x="-7.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseGreen" /></Sphere>
+        <Sphere name="s45"><Radius value="0.5" /><Position x="-5.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="polishedGold" /></Sphere>
+        <Sphere name="s46"><Radius value="0.5" /><Position x="-3.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diamond" /></Sphere>
+        <Sphere name="s47"><Radius value="0.5" /><Position x="-1.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseBlue" /></Sphere>
+        <Sphere name="s48"><Radius value="0.5" /><Position x="1.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="polishedCopper" /></Sphere>
+        <Sphere name="s49"><Radius value="0.5" /><Position x="3.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="crystal" /></Sphere>
+        <Sphere name="s50"><Radius value="0.5" /><Position x="5.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseYellow" /></Sphere>
+        
+        <!-- ===== ROW 6: More mixed (z = 2 to 4) ===== -->
+        <Sphere name="s51"><Radius value="0.5" /><Position x="7.0" y="0.5" z="2.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="chrome" /></Sphere>
+        <Sphere name="s52"><Radius value="0.5" /><Position x="-8.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+        <Sphere name="s53"><Radius value="0.5" /><Position x="-6.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffusePurple" /></Sphere>
+        <Sphere name="s54"><Radius value="0.5" /><Position x="-4.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="brushedSilver" /></Sphere>
+        <Sphere name="s55"><Radius value="0.5" /><Position x="-2.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowPurple" /></Sphere>
+        <Sphere name="s56"><Radius value="0.5" /><Position x="0.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseOrange" /></Sphere>
+        <Sphere name="s57"><Radius value="0.5" /><Position x="2.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="roughGold" /></Sphere>
+        <Sphere name="s58"><Radius value="0.5" /><Position x="4.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="water" /></Sphere>
+        <Sphere name="s59"><Radius value="0.5" /><Position x="6.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseCyan" /></Sphere>
+        <Sphere name="s60"><Radius value="0.5" /><Position x="8.0" y="0.5" z="4.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="aluminum" /></Sphere>
+        
+        <!-- ===== ROW 7: Pattern (z = 6) ===== -->
+        <Sphere name="s61"><Radius value="0.5" /><Position x="-7.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowOrange" /></Sphere>
+        <Sphere name="s62"><Radius value="0.5" /><Position x="-5.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffusePink" /></Sphere>
+        <Sphere name="s63"><Radius value="0.5" /><Position x="-3.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="titanium" /></Sphere>
+        <Sphere name="s64"><Radius value="0.5" /><Position x="-1.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diamond" /></Sphere>
+        <Sphere name="s65"><Radius value="0.5" /><Position x="1.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseBrown" /></Sphere>
+        <Sphere name="s66"><Radius value="0.5" /><Position x="3.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="bronze" /></Sphere>
+        <Sphere name="s67"><Radius value="0.5" /><Position x="5.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+        <Sphere name="s68"><Radius value="0.5" /><Position x="7.0" y="0.5" z="6.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseWhite" /></Sphere>
+        <Sphere name="s69"><Radius value="0.5" /><Position x="-8.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="brushedCopper" /></Sphere>
+        <Sphere name="s70"><Radius value="0.5" /><Position x="-6.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowRed" /></Sphere>
+        
+        <!-- ===== ROW 8: Final rows (z = 8) ===== -->
+        <Sphere name="s71"><Radius value="0.5" /><Position x="-4.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseRed" /></Sphere>
+        <Sphere name="s72"><Radius value="0.5" /><Position x="-2.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="mirrorSilver" /></Sphere>
+        <Sphere name="s73"><Radius value="0.5" /><Position x="0.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diamond" /></Sphere>
+        <Sphere name="s74"><Radius value="0.5" /><Position x="2.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowBlue" /></Sphere>
+        <Sphere name="s75"><Radius value="0.5" /><Position x="4.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseGreen" /></Sphere>
+        <Sphere name="s76"><Radius value="0.5" /><Position x="6.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="polishedGold" /></Sphere>
+        <Sphere name="s77"><Radius value="0.5" /><Position x="8.0" y="0.5" z="8.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="crystal" /></Sphere>
+        
+        <!-- ===== Larger feature spheres (varied heights) ===== -->
+        <Sphere name="big1"><Radius value="1.0" /><Position x="-5.0" y="1.0" z="-5.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+        <Sphere name="big2"><Radius value="1.0" /><Position x="5.0" y="1.0" z="-5.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="polishedGold" /></Sphere>
+        <Sphere name="big3"><Radius value="1.2" /><Position x="0.0" y="1.2" z="5.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="chrome" /></Sphere>
+        <Sphere name="big4"><Radius value="0.8" /><Position x="-6.0" y="0.8" z="5.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowWhite" /></Sphere>
+        <Sphere name="big5"><Radius value="0.8" /><Position x="6.0" y="0.8" z="5.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diamond" /></Sphere>
+        
+        <!-- ===== Scattered decorative spheres ===== -->
+        <Sphere name="d1"><Radius value="0.3" /><Position x="-3.5" y="0.3" z="-7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowGreen" /></Sphere>
+        <Sphere name="d2"><Radius value="0.3" /><Position x="3.5" y="0.3" z="-7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowPurple" /></Sphere>
+        <Sphere name="d3"><Radius value="0.3" /><Position x="-5.5" y="0.3" z="-3.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowOrange" /></Sphere>
+        <Sphere name="d4"><Radius value="0.3" /><Position x="5.5" y="0.3" z="-3.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowRed" /></Sphere>
+        <Sphere name="d5"><Radius value="0.3" /><Position x="-4.5" y="0.3" z="1.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowBlue" /></Sphere>
+        <Sphere name="d6"><Radius value="0.3" /><Position x="4.5" y="0.3" z="1.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowWhite" /></Sphere>
+        <Sphere name="d7"><Radius value="0.3" /><Position x="-3.5" y="0.3" z="3.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowGreen" /></Sphere>
+        <Sphere name="d8"><Radius value="0.3" /><Position x="3.5" y="0.3" z="3.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowPurple" /></Sphere>
+        <Sphere name="d9"><Radius value="0.3" /><Position x="-2.5" y="0.3" z="7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowOrange" /></Sphere>
+        <Sphere name="d10"><Radius value="0.3" /><Position x="2.5" y="0.3" z="7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glowRed" /></Sphere>
+        
+        <!-- ===== Additional spheres to reach 100 ===== -->
+        <Sphere name="e1"><Radius value="0.4" /><Position x="-1.5" y="0.4" z="-7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseRed" /></Sphere>
+        <Sphere name="e2"><Radius value="0.4" /><Position x="1.5" y="0.4" z="-7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="polishedCopper" /></Sphere>
+        <Sphere name="e3"><Radius value="0.4" /><Position x="-7.5" y="0.4" z="-3.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseBlue" /></Sphere>
+        <Sphere name="e4"><Radius value="0.4" /><Position x="7.5" y="0.4" z="-3.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="brushedSilver" /></Sphere>
+        <Sphere name="e5"><Radius value="0.4" /><Position x="-6.5" y="0.4" z="1.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="diffuseYellow" /></Sphere>
+        <Sphere name="e6"><Radius value="0.4" /><Position x="6.5" y="0.4" z="1.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="titanium" /></Sphere>
+        <Sphere name="e7"><Radius value="0.4" /><Position x="-5.5" y="0.4" z="7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="crystal" /></Sphere>
+        <Sphere name="e8"><Radius value="0.4" /><Position x="5.5" y="0.4" z="7.0" /><Scale x="1" y="1" z="1" /><Rotation x="0" y="0" z="0" /><Material name="glass" /></Sphere>
+    </Objects>
+</ItemContainer>

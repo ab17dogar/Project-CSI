@@ -11,6 +11,7 @@ set ( CMAKE_CXX_STANDARD 20 )
 ## This CMakeLists now focuses on building the project sources only.
 ## If you need to install or copy assets, add explicit install/copy rules.
 
+
 set(RAYTRACER_CORE_HEADERS
     src/3rdParty/tinyxml2/tinyxml2.h
     src/3rdParty/ObjLoader/OBJ_Loader.h
@@ -31,6 +32,18 @@ set(RAYTRACER_CORE_HEADERS
     src/engine/world.h
     src/engine/render_runner.h
     src/engine/factories/factory_methods.h
+    src/engine/perlin.h
+    src/engine/noise_texture.h
+    src/engine/quad.h
+    src/engine/translate.h
+    src/engine/rotate_y.h
+    src/engine/isotropic.h
+    src/engine/constant_medium.h
+    src/engine/onb.h
+    src/engine/pdf.h
+    src/engine/scatter_record.h
+    src/engine/ggx_material.h
+    src/engine/mis.h
     src/util/vec3.h
     src/util/ray.h
     src/defs.h
@@ -61,6 +74,7 @@ set(RAYTRACER_CORE_SOURCES
     src/util/logging.cpp
     src/3rdParty/stb_image_write.cpp
     src/3rdParty/stb_image_impl.cpp
+    src/engine/pdf.cpp
 )
 
 set(RAYTRACER_CLI_SOURCES
@@ -137,6 +151,7 @@ target_link_libraries(${PROJECT_NAME}
         raytracer_core
 )
 
+
 # Install rules: binary + assets (source assets directory)
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets DESTINATION share/${PROJECT_NAME})
@@ -150,3 +165,54 @@ add_custom_target(install-staging
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
+
+# ==========================================
+# UI Dependencies (GLFW + ImGui)
+# ==========================================
+# 1. GLFW
+add_subdirectory(src/3rdParty/glfw)
+
+# 2. Dear ImGui
+# ImGui is header-only + sources, no CMakeLists by default usually, but we build our lib from it.
+set(imgui_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/3rdParty/imgui")
+
+# Define ImGui Library Target
+# imgui doesn't provide a CMake target by default easily, so we build one.
+add_library(imgui_lib STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+target_include_directories(imgui_lib PUBLIC 
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+)
+target_link_libraries(imgui_lib PUBLIC glfw)
+
+# ==========================================
+# RaytracerGUI Executable
+# ==========================================
+add_executable(RaytracerGUI
+    src/gui/main.cpp
+    src/gui/gui_application.cpp
+    src/gui/gl_texture.cpp
+)
+
+target_include_directories(RaytracerGUI PRIVATE src)
+target_link_libraries(RaytracerGUI
+    PRIVATE
+        raytracer_core
+        imgui_lib
+        glfw
+)
+
+# Mac/Linux specific linking
+if(APPLE)
+    target_link_libraries(RaytracerGUI PRIVATE "-framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo")
+elseif(UNIX)
+    target_link_libraries(RaytracerGUI PRIVATE GL)
+endif()

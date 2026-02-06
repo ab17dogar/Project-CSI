@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<ItemContainer>
+    <Config>
+        <Width value="800" />
+        <Aspect_ratio value="1.33333" />
+        <Samples_Per_Pixel value="20" />
+        <Max_Depth value="8" />
+    </Config>
+    
+    <Camera>
+        <Viewport_Width value="2.0" />
+        <Focal_Length value="1.0" />
+        <!-- Positioned to look at the dragon from slightly above -->
+        <Look_From x="0.0" y="2.0" z="4.0" />
+        <Look_at x="0.0" y="0.5" z="0.0" />
+        <Up x="0.0" y="1.0" z="0.0" />
+        <FOV angle="60" />
+    </Camera>
+    
+    <Lights>
+        <Sun>
+            <Direction x="0.5" y="1.0" z="0.5" />
+            <Intensity value="1.5" />
+            <Color r="1.0" g="0.98" b="0.9" />
+        </Sun>
+        <PointLight name="Fill Light" enabled="true">
+            <Position x="-2.0" y="2.0" z="2.0" />
+            <Color r="0.9" g="0.95" b="1.0" />
+            <Intensity value="10.0" />
+        </PointLight>
+    </Lights>
+    
+    <Materials>
+        <Metal name="gold">
+            <Color r="1.0" g="0.85" b="0.0" />
+            <Fuzz value="0.1" />
+        </Metal>
+        <Lambertian name="greyFloor">
+            <Color r="0.5" g="0.5" b="0.5" />
+        </Lambertian>
+    </Materials>
+    
+    <Objects>
+        <Mesh name="dragon">
+            <Position x="0.0" y="0.0" z="0.0" />
+            <!-- Adjust scale if dragon is too big/small. Starting with 1.0 -->
+            <Scale x="1.0" y="1.0" z="1.0" />
+            <Rotation x="0" y="0" z="0" />
+            <Material name="gold" />
+            <File name="dragon.obj" />
+        </Mesh>
+        
+        <Quad name="floor">
+            <Position x="-5" y="0" z="-5" />
+            <U x="10" y="0" z="0" />
+            <V x="0" y="0" z="10" />
+            <Material name="greyFloor" />
+        </Quad>
+    </Objects>
+</ItemContainer>

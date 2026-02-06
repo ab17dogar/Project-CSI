@@ -1,114 +1,252 @@
-# Project CSI (Raytracer)
-FYP: Raytracing engine as backend
+# 3D Ray Tracing Engine (Project CSI - Visual and Analytical Computing)
 
-Primary remote `origin` now points to `Project-CSI`.
+<p align="center">
+  <img src="renders/samples/cornell_water_final.png" alt="Cornell Box with Water" width="600"/>
+</p>
 
-[![CI](https://github.com/fyp/raytracer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fyp/raytracer/actions/workflows/ci.yml)
-[![ASAN](https://github.com/fyp/raytracer/actions/workflows/ci.yml/badge.svg?query=workflow%3Aasan)](https://github.com/fyp/raytracer/actions/workflows/ci.yml)
-[![Release](https://github.com/fyp/raytracer/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/fyp/raytracer/actions/workflows/release.yml)
+A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built from scratch in C++17. This project implements physically-based rendering (PBR) techniques including GGX microfacet materials, Bounding Volume Hierarchy (BVH) acceleration, and AI-powered denoising.
 
-## Build & Run
+## 🎯 Features
 
-This project uses CMake. A `CMakePresets.json` file is provided to make configuring consistent.
+### Rendering
+- **Monte Carlo Path Tracing** with unbiased global illumination
+- **Russian Roulette** path termination for efficiency
+- **Multiple Importance Sampling (MIS)** with power heuristic
+- **Next Event Estimation (NEE)** for direct light sampling
 
-Quick local build (from project root):
+### Materials (PBR)
+- **Lambertian** diffuse surfaces
+- **Metal** with configurable roughness
+- **Dielectric** (glass/water) with Fresnel and refraction
+- **GGX Microfacet** for realistic metallic highlights
+- **Emissive** materials for area lights
 
+### Acceleration & Optimization
+- **BVH (Bounding Volume Hierarchy)** with Surface Area Heuristic
+- **Multi-threaded tile-based rendering** using C++ threads
+- **Intel OIDN** AI denoiser integration
+
+### Interactive GUI
+- Real-time **progressive rendering**
+- **WASD + mouse** camera controls
+- Live material and lighting adjustments
+- Scene file hot-reloading
+
+---
+
+## � Documentation
+
+For a comprehensive technical documentation covering all algorithms, mathematical foundations, and implementation details, see:
+
+📄 **[Project_Documentation.pdf](Project_Documentation.pdf)** - Complete 13-page technical report
+
+The documentation includes:
+- Rendering equation and Monte Carlo integration theory
+- Ray-scene intersection algorithms (Möller-Trumbore)
+- BVH construction with Surface Area Heuristic
+- Material models (Lambertian, GGX, Dielectric)
+- Importance sampling techniques (MIS, NEE, Russian Roulette)
+- System architecture and performance analysis
+
+---
+
+
+## �🛠️ Tools & Technologies
+
+| Category | Technology |
+|----------|------------|
+| Language | C++17 |
+| Build System | CMake 3.16+ |
+| GUI | Dear ImGui + GLFW + OpenGL |
+| Math | GLM |
+| Scene Format | XML (tinyxml2) + OBJ/MTL |
+| Denoising | Intel Open Image Denoiser (OIDN) |
+| Image I/O | stb_image, stb_image_write |
+
+---
+
+## 📋 Prerequisites
+
+Ensure you have the following installed:
+
+- **CMake** 3.16 or higher
+- **C++17 compatible compiler** (GCC 9+, Clang 10+, MSVC 2019+)
+- **OpenGL** 3.3+ compatible GPU and drivers
+- **Git** (for cloning)
+
+### macOS
 ```bash
-cmake --preset default
-cmake --build build -- -j2
-./build/Raytracer
+brew install cmake glfw
 ```
 
-### Optional: Qt6 UI build
-
-If you want the graphical editor prototype, enable the new `RaytracerUI` target by passing `-DBUILD_QT_UI=ON` during configure. You must have Qt 6.5+ installed (see `QUICK_START_UI.md` for platform-specific setup).
-
+### Ubuntu/Debian
 ```bash
-cmake -S . -B build -DBUILD_QT_UI=ON
-cmake --build build --target RaytracerUI
-./build/RaytracerUI
+sudo apt update
+sudo apt install cmake build-essential libglfw3-dev libgl1-mesa-dev
 ```
 
-Tips:
-- Set `Qt6_DIR` or add Qt to your `CMAKE_PREFIX_PATH` if CMake cannot find it.
-- Keep `BUILD_QT_UI=OFF` on CI or machines without Qt to avoid configure failures.
+### Windows
+- Install [Visual Studio 2019+](https://visualstudio.microsoft.com/) with C++ workload
+- Install [CMake](https://cmake.org/download/)
 
-Notes:
-- The default preset sets `REQUIRE_MESHES=OFF`, so missing optional `.obj` assets will not stop configure.
-- If you want configure to fail when mesh assets are missing (useful for CI / reproducible builds), run:
+---
 
+## 🚀 Build Instructions
+
+### 1. Clone the Repository
 ```bash
-cmake --preset require-meshes
+git clone https://github.com/YOUR_USERNAME/project-csi.git
+cd project-csi
 ```
 
-That preset sets `REQUIRE_MESHES=ON` and will fail configure if any required mesh is missing.
-
-## VS Code integration
-
-I added `.vscode/tasks.json` and `.vscode/launch.json` to make it easy to build and run from VS Code.
-
-- Use the CMake Tools extension to pick the `default` preset and run Configure/Build from the status bar.
-- Or run the `CMake: Configure (preset)` and `CMake: Build` tasks from the Command Palette.
-- The `Run Raytracer` launch configuration will build the project and launch the `Raytracer` executable.
-
-## Continuous Integration
-
-A sample GitHub Actions workflow is included at `.github/workflows/ci.yml`. The CI uses the strict preset (`require-meshes`) so PRs will fail if required assets are not present. This helps catch missing assets early.
-
-If you'd like the CI to instead provision placeholder assets or download them from a CDN, I can add that step.
-
-## CI / CD
-
-This repository includes GitHub Actions workflows under `.github/workflows/`:
-
-- `ci.yml` (runs on push & pull_request): builds the project, runs it under LLDB (captures run.log), and uploads the log as an artifact. It also includes an `asan` job that builds with AddressSanitizer and uploads the ASAN run log.
-- `release.yml` (runs on tag push `v*`): builds a Release, installs into `build/staging`, zips the staging directory and creates a GitHub Release with the zip attached.
-
-How to trigger a release:
-
-1. Create a signed or annotated tag locally, for example:
-
+### 2. Create Build Directory
 ```bash
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+mkdir build
+cd build
 ```
 
-2. GitHub Actions will run `release.yml`, build a Release artifact and publish a GitHub Release with the zip file.
-
-If you want stricter CI (e.g., fail when meshes are missing), configure the `require-meshes` preset or update `ci.yml` accordingly.
-
-## System dependencies
-
-This project now prefers a system-installed GLM (OpenGL Mathematics) package.
-
-On Ubuntu/Debian (CI):
-
+### 3. Configure with CMake
 ```bash
-sudo apt-get update
-sudo apt-get install -y libglm-dev
+cmake ..
 ```
 
-On macOS (Homebrew):
-
+### 4. Build the Project
 ```bash
-brew install glm
+cmake --build . --config Release -j$(nproc)
 ```
 
-For the UI target you additionally need Qt. For example on macOS:
-
+Or on Windows:
 ```bash
-brew install qt@6
-cmake -S . -B build -DQt6_DIR="$(brew --prefix qt@6)/lib/cmake/Qt6"
+cmake --build . --config Release
 ```
 
-If `cmake` cannot find `glm` during configure it will stop with a clear error instructing you to install the package or set `CMAKE_PREFIX_PATH`/`glm_DIR` to point at an installed glmConfig.cmake.
+---
 
-## Install / staging
+## ▶️ Running the Application
 
-You can install the built artifacts and assets into a staging directory inside the build tree with the convenience target:
-
+### Interactive GUI Mode
 ```bash
-cmake --build build --target install-staging
+# From the build directory
+./RaytracerUI
 ```
 
-This will create `build/staging` containing the installed `bin/` and `share/` layout.
+### Command-Line Renderer
+```bash
+# Render with default settings
+./Raytracer
+
+# Render a specific scene
+./Raytracer --scene cornell_water_scene.xml --bvh --samples 500
+
+# Full options
+./Raytracer --help
+```
+
+### CLI Options
+| Flag | Description |
+|------|-------------|
+| `--scene <file>` | Scene XML file (default: objects.xml) |
+| `--out <file>` | Output image path |
+| `--width <W>` | Override image width |
+| `--samples <S>` | Samples per pixel |
+| `--bvh` | Use BVH acceleration (recommended) |
+| `--denoise` | Enable AI denoising (default) |
+| `--preset <name>` | Use preset: Preview, Draft, Final |
+
+---
+
+## 📁 Project Structure
+
+```
+project-csi/
+├── assets/                 # Scene files and 3D models
+│   ├── *.xml              # Scene definitions
+│   ├── *.obj              # 3D mesh files
+│   └── *.mtl              # Material files
+├── src/
+│   ├── engine/            # Core ray tracing engine
+│   │   ├── camera.h/cpp   # Camera model
+│   │   ├── material.h     # Material base class
+│   │   ├── bvh_node.h/cpp # BVH acceleration
+│   │   ├── render_runner.cpp # Tile-based renderer
+│   │   └── ...
+│   ├── gui/               # ImGui application
+│   └── 3rdParty/          # External libraries
+├── renders/samples/       # Sample output images
+├── build/output/          # Rendered output directory
+├── CMakeLists.txt
+└── README.md
+```
+
+---
+
+## 🖼️ Sample Outputs
+
+### Cornell Box with Water Sphere
+<img src="renders/samples/cornell_water_final.png" alt="Cornell Water" width="400"/>
+
+*Demonstrates refraction, caustics, and global illumination*
+
+### GGX Material Test
+<img src="renders/samples/ggx.png" alt="GGX Materials" width="400"/>
+
+*Showcases metallic roughness variations*
+
+### 100 Spheres
+<img src="renders/samples/hundred_spheres_render.png" alt="100 Spheres" width="400"/>
+
+*BVH acceleration test with multiple objects*
+
+---
+
+## 🎬 Demo Video
+
+<!-- Add your video here -->
+> A demonstration video showing the interactive GUI and real-time rendering capabilities.
+
+---
+
+## 📖 Key Concepts Implemented
+
+### The Rendering Equation
+```
+Lo(x,ωo) = Le(x,ωo) + ∫ f(x,ωi,ωo) Li(x,ωi) cos(θi) dωi
+```
+
+### BVH Acceleration
+Reduces ray-scene intersection from **O(n)** to **O(log n)** using:
+- Axis-Aligned Bounding Boxes (AABB)
+- Surface Area Heuristic (SAH) for optimal tree construction
+
+### GGX Microfacet Model
+Physically accurate BRDF with:
+- Normal Distribution Function (NDF)
+- Smith Geometry Function
+- Schlick Fresnel Approximation
+
+---
+
+## 👥 Authors
+
+- **Abu Bakar** - Core Engine, BVH, I/O Systems
+- **M Shahman Butt** - Materials, MIS/NEE, GUI Integration
+
+**Supervisor:** Professor Olivier Staadt  
+**Institution:** University of Rostock  
+**Course:** Visual Computing (12 ECTS)
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgements
+
+- [Ray Tracing in One Weekend](https://raytracing.github.io/) by Peter Shirley
+- [Intel Open Image Denoise](https://www.openimagedenoise.org/)
+- [Dear ImGui](https://github.com/ocornut/imgui)
+- [GLFW](https://www.glfw.org/)
+- [GLM](https://github.com/g-truc/glm)

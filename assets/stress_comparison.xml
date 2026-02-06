@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<ItemContainer>
+    <Config>
+        <Width value="400" />
+        <Aspect_ratio value="1.33333" />
+        <Samples_Per_Pixel value="1" />
+        <Max_Depth value="4" />
+    </Config>
+    
+    <Camera>
+        <Viewport_Width value="2.0" />
+        <Focal_Length value="1.0" />
+        <Look_From x="0.0" y="2.0" z="4.0" />
+        <Look_at x="0.0" y="0.5" z="0.0" />
+        <Up x="0.0" y="1.0" z="0.0" />
+        <FOV angle="60" />
+    </Camera>
+    
+    <Lights>
+        <Sun>
+            <Direction x="0.5" y="1.0" z="0.5" />
+            <Intensity value="1.5" />
+            <Color r="1.0" g="0.98" b="0.9" />
+        </Sun>
+    </Lights>
+    
+    <Materials>
+        <Lambertian name="grey">
+            <Color r="0.5" g="0.5" b="0.5" />
+        </Lambertian>
+    </Materials>
+    
+    <Objects>
+        <Mesh name="dragon">
+            <Position x="0.0" y="0.0" z="0.0" />
+            <Scale x="1.0" y="1.0" z="1.0" />
+            <Rotation x="0" y="0" z="0" />
+            <Material name="grey" />
+            <File name="dragon.obj" />
+        </Mesh>
+    </Objects>
+</ItemContainer>
