@@ -1,0 +1,546 @@
+\documentclass[12pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% Code listing style
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    breaklines=true,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{red!70!black}
+}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Project CSI -- Visual Computing}
+\lhead{3D Ray Tracing Engine}
+\cfoot{\thepage}
+
+% Title formatting
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+
+\begin{document}
+
+% Title Page
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\Huge\bfseries 3D Ray Tracing Engine}\\[0.5cm]
+    {\Large Project Documentation}\\[2cm]
+    
+    {\large Visual and Analytical Computing\\
+    University of Rostock\\
+    Winter Semester 2025/26}\\[2cm]
+    
+    {\large\bfseries Authors:}\\[0.3cm]
+    Abu Bakar\\
+    M Shahman Butt\\[2cm]
+    
+    {\large\bfseries Supervisor:}\\[0.3cm]
+    Professor Olivier Staadt\\[3cm]
+    
+    {\large February 2026}
+    
+    \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introduction}
+% ============================================================================
+
+This document presents the technical documentation for our Monte Carlo Path Tracing engine, developed as part of the Visual and Analytical Computing course at the University of Rostock. The project spans approximately four months of development, resulting in a fully functional physically-based renderer with an interactive graphical interface.
+
+Our primary objective was to build a ray tracer from first principles, implementing the core mathematical foundations ourselves rather than relying on existing rendering libraries. This approach gave us deep insight into how light simulation works at a fundamental level and the computational challenges involved in producing realistic images.
+
+The engine handles scenes with complex geometry, multiple material types, and various lighting conditions. We focused particularly on implementing efficient acceleration structures and variance reduction techniques to make the renderer practical for scenes with tens of thousands of triangles.
+
+% ============================================================================
+\section{Project Overview}
+% ============================================================================
+
+\subsection{Motivation}
+
+Ray tracing has become increasingly relevant in modern graphics, with real-time implementations now appearing in consumer hardware. Understanding the underlying principles is essential for anyone working in computer graphics, game development, or visual effects.
+
+We chose to implement a path tracer specifically because it naturally handles global illumination effects like soft shadows, color bleeding, and caustics. These phenomena are difficult or impossible to achieve with traditional rasterization approaches.
+
+\subsection{Scope}
+
+The project covers the following areas:
+
+\begin{itemize}[noitemsep]
+    \item Core ray-scene intersection algorithms
+    \item Physically-based material models (Lambertian, metallic, dielectric, GGX)
+    \item Spatial acceleration using Bounding Volume Hierarchies
+    \item Monte Carlo integration with importance sampling
+    \item Multiple Importance Sampling for variance reduction
+    \item Multi-threaded rendering with tile-based work distribution
+    \item AI-based denoising integration
+    \item Interactive GUI for real-time scene exploration
+\end{itemize}
+
+\subsection{Task Distribution}
+
+The workload was divided between two team members:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Abu Bakar} & \textbf{M Shahman Butt} \\
+\midrule
+Core engine architecture & Material system (GGX, metals) \\
+BVH implementation & MIS and NEE sampling \\
+XML scene parsing & GUI development \\
+OBJ/MTL file loading & Camera controls \\
+Multi-threading system & Denoiser integration \\
+\bottomrule
+\end{tabular}
+\caption{Task distribution between team members}
+\end{table}
+
+% ============================================================================
+\section{Mathematical Foundations}
+% ============================================================================
+
+\subsection{The Rendering Equation}
+
+The theoretical basis of our renderer is Kajiya's rendering equation, formulated in 1986. It describes how light propagates through a scene:
+
+\begin{equation}
+L_o(\mathbf{x}, \omega_o) = L_e(\mathbf{x}, \omega_o) + \int_{\Omega} f_r(\mathbf{x}, \omega_i, \omega_o) L_i(\mathbf{x}, \omega_i) (\omega_i \cdot \mathbf{n}) \, d\omega_i
+\end{equation}
+
+Here, $L_o$ is the outgoing radiance at point $\mathbf{x}$ in direction $\omega_o$, $L_e$ is the emitted radiance, $f_r$ is the Bidirectional Reflectance Distribution Function (BRDF), and the integral sums contributions from all incoming directions over the hemisphere $\Omega$.
+
+This equation is recursive---the incoming radiance $L_i$ at one point depends on the outgoing radiance at another point. Solving it analytically is impossible for non-trivial scenes, which is why we turn to Monte Carlo methods.
+
+\subsection{Monte Carlo Integration}
+
+Monte Carlo integration estimates integrals by random sampling:
+
+\begin{equation}
+\int f(x) \, dx \approx \frac{1}{N} \sum_{i=1}^{N} \frac{f(x_i)}{p(x_i)}
+\end{equation}
+
+where $x_i$ are samples drawn from probability distribution $p(x)$. The key insight is that we can choose $p(x)$ to concentrate samples where $f(x)$ is large, reducing variance. This technique, called importance sampling, is crucial for efficient rendering.
+
+In our implementation, we sample directions according to the BRDF rather than uniformly over the hemisphere. For a Lambertian surface, this means sampling proportionally to $\cos\theta$, which matches the geometry term in the rendering equation.
+
+\subsection{Path Tracing Algorithm}
+
+Path tracing simulates light by tracing rays from the camera into the scene. When a ray hits a surface, it spawns a new ray based on the material properties. This continues until the ray either hits a light source, escapes the scene, or is terminated.
+
+\begin{lstlisting}[language=C++,caption={Simplified path tracing loop}]
+color trace_ray(ray r, int depth) {
+    if (depth <= 0) return black;
+    
+    hit_record rec;
+    if (!scene.hit(r, rec)) 
+        return background_color;
+    
+    color emitted = rec.material->emit();
+    
+    scatter_record srec;
+    if (!rec.material->scatter(r, rec, srec))
+        return emitted;
+    
+    ray scattered = srec.scattered_ray;
+    color attenuation = srec.attenuation;
+    
+    return emitted + attenuation * trace_ray(scattered, depth - 1);
+}
+\end{lstlisting}
+
+The challenge is that basic path tracing can be extremely noisy, especially for small light sources. We address this through the sampling techniques described in Section~\ref{sec:sampling}.
+
+% ============================================================================
+\section{Ray-Scene Intersection}
+% ============================================================================
+
+\subsection{Ray Representation}
+
+A ray is defined parametrically as:
+
+\begin{equation}
+\mathbf{P}(t) = \mathbf{O} + t \cdot \mathbf{D}
+\end{equation}
+
+where $\mathbf{O}$ is the origin, $\mathbf{D}$ is the normalized direction, and $t \geq 0$ is the parameter. Finding intersections means solving for the smallest positive $t$ where the ray intersects scene geometry.
+
+\subsection{Sphere Intersection}
+
+For a sphere centered at $\mathbf{C}$ with radius $r$, the intersection is found by substituting the ray equation into the sphere equation $|\mathbf{P} - \mathbf{C}|^2 = r^2$:
+
+\begin{equation}
+t = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+\end{equation}
+
+where $a = \mathbf{D} \cdot \mathbf{D}$, $b = 2\mathbf{D} \cdot (\mathbf{O} - \mathbf{C})$, and $c = |\mathbf{O} - \mathbf{C}|^2 - r^2$.
+
+\subsection{Triangle Intersection: Möller-Trumbore}
+
+For mesh geometry, we use the Möller-Trumbore algorithm, which is efficient because it avoids computing the plane equation explicitly. Given a triangle with vertices $\mathbf{V}_0$, $\mathbf{V}_1$, $\mathbf{V}_2$, the algorithm solves:
+
+\begin{equation}
+\mathbf{O} + t\mathbf{D} = (1 - u - v)\mathbf{V}_0 + u\mathbf{V}_1 + v\mathbf{V}_2
+\end{equation}
+
+The parameters $(u, v)$ are barycentric coordinates used for texture mapping and normal interpolation. Our implementation handles back-face culling and ensures numerical stability for grazing angles.
+
+\subsection{Quad Primitive}
+
+We implemented a quad primitive for area lights and flat surfaces like walls. A quad is defined by a corner point $\mathbf{Q}$ and two edge vectors $\mathbf{u}$ and $\mathbf{v}$. The intersection test first finds where the ray hits the infinite plane, then checks if the hit point lies within the parallelogram bounds.
+
+This is more efficient than splitting quads into two triangles and allows direct sampling for importance sampling of area lights.
+
+% ============================================================================
+\section{Bounding Volume Hierarchy}
+% ============================================================================
+
+\subsection{The Need for Acceleration}
+
+Testing every ray against every triangle has $O(n)$ complexity per ray. For a scene with 100,000 triangles and an image with 1 million pixels at 100 samples each, this means $10^{13}$ intersection tests---completely impractical.
+
+A Bounding Volume Hierarchy (BVH) organizes geometry into a tree structure where each node contains a bounding box. If a ray misses a node's bounding box, all geometry inside can be skipped. This reduces average complexity to $O(\log n)$.
+
+\subsection{Axis-Aligned Bounding Boxes}
+
+We use Axis-Aligned Bounding Boxes (AABBs) because the intersection test is extremely fast. An AABB is defined by minimum and maximum corners. The ray-AABB test uses the slab method:
+
+\begin{lstlisting}[language=C++,caption={Ray-AABB intersection}]
+bool aabb::hit(const ray& r, double t_min, double t_max) {
+    for (int axis = 0; axis < 3; axis++) {
+        double inv_d = 1.0 / r.direction()[axis];
+        double t0 = (min[axis] - r.origin()[axis]) * inv_d;
+        double t1 = (max[axis] - r.origin()[axis]) * inv_d;
+        if (inv_d < 0) std::swap(t0, t1);
+        t_min = std::max(t0, t_min);
+        t_max = std::min(t1, t_max);
+        if (t_max <= t_min) return false;
+    }
+    return true;
+}
+\end{lstlisting}
+
+\subsection{Surface Area Heuristic}
+
+The quality of a BVH depends heavily on how geometry is partitioned. We use the Surface Area Heuristic (SAH), which estimates the expected cost of traversing a subtree.
+
+The SAH cost for splitting a node into children $A$ and $B$ is:
+
+\begin{equation}
+C = C_{\text{trav}} + \frac{SA(A)}{SA(N)} \cdot N_A \cdot C_{\text{isect}} + \frac{SA(B)}{SA(N)} \cdot N_B \cdot C_{\text{isect}}
+\end{equation}
+
+where $SA$ is surface area, $N_A$ and $N_B$ are primitive counts, $C_{\text{trav}}$ is traversal cost, and $C_{\text{isect}}$ is intersection cost. We evaluate splits along each axis and choose the one with minimum cost.
+
+In practice, SAH produces significantly better trees than simpler strategies like object median or spatial median splitting. Our benchmarks showed 2-3x speedup on the Stanford Bunny mesh compared to median splitting.
+
+% ============================================================================
+\section{Material System}
+% ============================================================================
+
+\subsection{BRDF Overview}
+
+The Bidirectional Reflectance Distribution Function describes how light reflects off a surface. It takes an incoming direction $\omega_i$ and outgoing direction $\omega_o$ and returns the ratio of reflected radiance to incident irradiance.
+
+A physically plausible BRDF must satisfy two properties:
+\begin{enumerate}[noitemsep]
+    \item \textbf{Reciprocity}: $f_r(\omega_i, \omega_o) = f_r(\omega_o, \omega_i)$
+    \item \textbf{Energy conservation}: $\int f_r(\omega_i, \omega_o) \cos\theta_o \, d\omega_o \leq 1$
+\end{enumerate}
+
+\subsection{Lambertian Diffuse}
+
+The simplest BRDF is Lambertian, which scatters light equally in all directions:
+
+\begin{equation}
+f_r = \frac{\rho}{\pi}
+\end{equation}
+
+where $\rho$ is the albedo (surface color). The $\pi$ factor ensures energy conservation. We sample Lambertian surfaces using cosine-weighted hemisphere sampling, which matches the $\cos\theta$ factor in the rendering equation and reduces variance.
+
+\subsection{Perfect Specular Reflection}
+
+Mirrors reflect light in a single direction: $\omega_r = 2(\omega_i \cdot \mathbf{n})\mathbf{n} - \omega_i$. This is technically a delta distribution in the BRDF, requiring special handling in the path tracer.
+
+For rough metals, we add a ``fuzz'' parameter that randomly perturbs the reflected direction, creating blurred reflections.
+
+\subsection{Dielectric Materials}
+
+Glass and water both reflect and refract light. The split is governed by the Fresnel equations, which we approximate using Schlick's formula:
+
+\begin{equation}
+R(\theta) = R_0 + (1 - R_0)(1 - \cos\theta)^5
+\end{equation}
+
+where $R_0 = \left(\frac{n_1 - n_2}{n_1 + n_2}\right)^2$ and $n_1, n_2$ are refractive indices.
+
+Refraction direction is computed using Snell's law. Total internal reflection occurs when the angle is too steep for light to escape a denser medium.
+
+\subsection{GGX Microfacet Model}
+
+For realistic metallic and plastic surfaces, we implemented the GGX microfacet model. The core idea is that real surfaces consist of tiny mirror-like facets with varying orientations. The roughness parameter controls how spread out these orientations are.
+
+The GGX normal distribution function is:
+
+\begin{equation}
+D(\mathbf{h}) = \frac{\alpha^2}{\pi((\mathbf{n} \cdot \mathbf{h})^2(\alpha^2 - 1) + 1)^2}
+\end{equation}
+
+where $\mathbf{h}$ is the half-vector and $\alpha$ is roughness. Low $\alpha$ gives sharp highlights; high $\alpha$ gives diffuse-like appearance.
+
+The geometry term $G$ accounts for microfacet shadowing and masking. We use the Smith separable form with GGX:
+
+\begin{equation}
+G(\omega_i, \omega_o) = G_1(\omega_i) \cdot G_1(\omega_o)
+\end{equation}
+
+where $G_1(\omega) = \frac{2(\mathbf{n} \cdot \omega)}{(\mathbf{n} \cdot \omega) + \sqrt{\alpha^2 + (1-\alpha^2)(\mathbf{n} \cdot \omega)^2}}$.
+
+% ============================================================================
+\section{Importance Sampling Techniques}
+\label{sec:sampling}
+% ============================================================================
+
+\subsection{PDF Classes}
+
+Our sampling system is built around an abstract \texttt{pdf} class with methods \texttt{value()} (evaluate PDF at a direction) and \texttt{generate()} (sample a random direction). Concrete implementations include:
+
+\begin{itemize}[noitemsep]
+    \item \texttt{cosine\_pdf}: Samples proportionally to $\cos\theta$ for Lambertian surfaces
+    \item \texttt{hittable\_pdf}: Samples toward a specific object (used for light sources)
+    \item \texttt{mixture\_pdf}: Combines two PDFs with 50/50 weighting
+\end{itemize}
+
+\subsection{Next Event Estimation}
+
+Standard path tracing struggles with small light sources because rays rarely hit them by chance. Next Event Estimation (NEE) solves this by explicitly sampling the light at each bounce.
+
+At each intersection, we:
+\begin{enumerate}[noitemsep]
+    \item Pick a random point on a light source
+    \item Trace a shadow ray to check visibility
+    \item If unoccluded, add the direct illumination contribution
+\end{enumerate}
+
+This dramatically reduces variance for scenes with small or distant lights.
+
+\subsection{Multiple Importance Sampling}
+
+A problem arises when combining NEE with standard path tracing: some light paths get counted twice. Multiple Importance Sampling (MIS) solves this by weighting contributions from different sampling strategies.
+
+We use the power heuristic:
+
+\begin{equation}
+w_s = \frac{p_s^{\beta}}{\sum_k p_k^{\beta}}
+\end{equation}
+
+with $\beta = 2$. Each sample is weighted by how ``good'' its strategy was for that particular path. This ensures that the strategy best suited for each situation contributes most.
+
+\subsection{Russian Roulette}
+
+Naive path termination after a fixed number of bounces introduces bias (missing energy from longer paths). Russian Roulette randomly terminates paths while compensating for the lost energy:
+
+\begin{lstlisting}[language=C++,caption={Russian Roulette termination}]
+double p_continue = std::min(0.95, luminance(throughput));
+if (random_double() > p_continue)
+    return black;
+throughput /= p_continue;  // Compensate for termination
+\end{lstlisting}
+
+This produces an unbiased estimator while allowing early termination of low-energy paths.
+
+% ============================================================================
+\section{System Architecture}
+% ============================================================================
+
+\subsection{Module Structure}
+
+The codebase is organized into distinct modules:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{engine/}: Core rendering logic, materials, geometry
+    \item \textbf{gui/}: Interactive application using Dear ImGui
+    \item \textbf{3rdParty/}: External libraries (tinyxml2, stb\_image, GLFW)
+\end{itemize}
+
+This separation allows the command-line renderer and GUI application to share the same engine code.
+
+\subsection{Scene Loading}
+
+Scenes are defined in XML format, specifying camera parameters, materials, and object placements. The parser supports:
+
+\begin{itemize}[noitemsep]
+    \item Primitive shapes (spheres, quads)
+    \item OBJ mesh loading with MTL material files
+    \item Material properties (albedo, roughness, emission)
+    \item Transformations (position, rotation, scale)
+\end{itemize}
+
+OBJ files can contain hundreds of thousands of triangles. Our loader handles this efficiently and automatically builds the BVH during scene initialization.
+
+\subsection{Multi-threaded Rendering}
+
+We use tile-based rendering to parallelize across CPU cores. The image is divided into 32$\times$32 pixel tiles, and worker threads process tiles from a shared queue.
+
+This approach has several advantages:
+\begin{itemize}[noitemsep]
+    \item \textbf{Load balancing}: Complex regions (e.g., glass) take longer per tile; idle threads pick up remaining work
+    \item \textbf{Cache efficiency}: Working on adjacent pixels keeps relevant BVH nodes in cache
+    \item \textbf{Progressive display}: Tiles can be displayed as they complete
+\end{itemize}
+
+Thread synchronization uses atomic operations and mutex-protected queues to avoid contention.
+
+% ============================================================================
+\section{Interactive Application}
+% ============================================================================
+
+\subsection{GUI Framework}
+
+The interactive renderer uses Dear ImGui for the interface and GLFW/OpenGL for window management. The rendered image is uploaded to a GPU texture for display.
+
+Controls include:
+\begin{itemize}[noitemsep]
+    \item WASD keys for camera movement
+    \item Mouse drag for camera rotation
+    \item Sliders for samples, resolution, material parameters
+    \item Scene file selection and hot-reloading
+\end{itemize}
+
+\subsection{Progressive Rendering}
+
+Rather than waiting for a full render, the GUI displays partial results. Each frame accumulates more samples, and the image gradually converges to the final result.
+
+Moving the camera resets the sample count, providing instant (though noisy) feedback. This makes scene exploration interactive despite the computational cost of path tracing.
+
+\subsection{Denoiser Integration}
+
+We integrated Intel's Open Image Denoise (OIDN) library to remove noise from low-sample-count renders. OIDN uses machine learning trained on path-traced images to predict the noise-free result.
+
+The denoiser runs as a post-process after rendering completes. It takes the RGB image as input and outputs a denoised version. This allows acceptable quality at 50-100 samples instead of the thousands typically needed.
+
+% ============================================================================
+\section{Results and Performance}
+% ============================================================================
+
+\subsection{Test Scenes}
+
+We validated the renderer on several test scenes:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Cornell Box}: Classic test for global illumination, color bleeding
+    \item \textbf{Cornell Box with Water}: Tests refraction and caustics
+    \item \textbf{Stanford Bunny}: High-poly mesh (69,451 triangles) for BVH testing
+    \item \textbf{100 Spheres}: Stress test with multiple materials
+\end{itemize}
+
+\subsection{Performance Measurements}
+
+Benchmarks were run on an Apple M1 MacBook Pro:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Scene} & \textbf{Triangles} & \textbf{Linear} & \textbf{BVH} \\
+\midrule
+Cornell Box & 36 & 2.1s & 1.8s \\
+100 Spheres & 0 (spheres) & 4.2s & 3.8s \\
+Stanford Bunny & 69,451 & 847s & 12.3s \\
+Dragon & 871,414 & DNF & 89s \\
+\bottomrule
+\end{tabular}
+\caption{Render time comparison at 800$\times$600, 100 samples}
+\end{table}
+
+The BVH provides massive speedups for mesh-heavy scenes. The Dragon model would take over 10 hours with linear traversal but renders in under 2 minutes with BVH.
+
+\subsection{Image Quality}
+
+The implemented techniques produce physically plausible results:
+\begin{itemize}[noitemsep]
+    \item Soft shadows from area lights
+    \item Color bleeding between surfaces
+    \item Accurate glass refraction with Fresnel effects
+    \item Metallic highlights with configurable roughness
+\end{itemize}
+
+% ============================================================================
+\section{Challenges Encountered}
+% ============================================================================
+
+\subsection{Numerical Precision}
+
+Floating-point errors caused ``shadow acne'' where surfaces shadowed themselves due to imprecise intersection calculations. The solution was adding a small epsilon offset when spawning shadow rays.
+
+\subsection{BVH Debugging}
+
+Incorrect BVH construction caused rays to miss geometry entirely. We added visualization tools to display bounding boxes and verify the tree structure. The issue was an off-by-one error in the SAH binning code.
+
+\subsection{Energy Conservation}
+
+Early material implementations violated energy conservation, causing scenes to ``blow out'' after many bounces. We traced this to missing normalization factors in the BRDF calculations.
+
+\subsection{Thread Safety}
+
+Race conditions in the tile queue caused duplicate work and missing tiles. Proper mutex usage and atomic operations resolved these issues, though debugging was time-consuming.
+
+% ============================================================================
+\section{Future Work}
+% ============================================================================
+
+Several extensions would improve the renderer:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{GPU acceleration}: CUDA or Metal compute shaders would provide 10-100x speedup
+    \item \textbf{Volumetric rendering}: Fog, smoke, and subsurface scattering
+    \item \textbf{Texture mapping}: Image-based albedo, normal, and roughness maps
+    \item \textbf{Environment maps}: HDR lighting from panoramic images
+    \item \textbf{Bidirectional path tracing}: Better handling of caustics
+\end{itemize}
+
+% ============================================================================
+\section{Conclusion}
+% ============================================================================
+
+This project successfully implemented a functional Monte Carlo path tracer with physically-based materials and efficient acceleration structures. The combination of BVH traversal, importance sampling, and AI denoising makes it practical for scenes with complex geometry.
+
+Building the renderer from scratch provided deep understanding of light transport theory and the numerical techniques required for practical implementation. The interactive GUI adds educational value by allowing real-time exploration of rendering parameters.
+
+The codebase serves as a foundation for further experimentation with advanced rendering techniques.
+
+\vspace{1cm}
+
+\noindent\textbf{Repository:} \url{https://github.com/ab17dogar/project-csi}
+
+\end{document}

@@ -228,15 +228,26 @@ int main(int argc, char **argv) {
     outPath = outPathFlag;
   } else if (getcwd(cwdBuf, sizeof(cwdBuf)) != nullptr) {
     string cwd(cwdBuf);
-    // If running from the build directory itself, write to image.ppm
+    // If running from the build directory itself, write to output/image.png
     if (!cwd.empty() && cwd.substr(cwd.find_last_of("/\\") + 1) == "build") {
-      outPath = string("image.png");
+      outPath = string("output/image.png");
     } else {
-      outPath = string("build/image.png");
+      outPath = string("build/output/image.png");
     }
   } else {
-    outPath = string("build/image.png");
+    outPath = string("build/output/image.png");
   }
+
+  // Ensure output directory exists
+  {
+    namespace fs = std::filesystem;
+    fs::path outPathFs(outPath);
+    if (outPathFs.has_parent_path()) {
+      std::error_code ec;
+      fs::create_directories(outPathFs.parent_path(), ec);
+    }
+  }
+
 
   // Startup summary (stderr) so it doesn't mix with progress output
   if (!g_quiet.load()) {

@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<ItemContainer>
+    <Config>
+        <Width value="200" />
+        <Aspect_ratio value="1.0" />
+        <Samples_Per_Pixel value="1" />
+        <Max_Depth value="4" />
+    </Config>
+    
+    <Camera>
+        <Look_From x="0.0" y="2.0" z="4.0" />
+        <Look_at x="0.0" y="0.5" z="0.0" />
+        <Up x="0.0" y="1.0" z="0.0" />
+        <FOV angle="45" />
+    </Camera>
+    
+    <Lights>
+        <Sun>
+            <Direction x="1" y="1" z="1" />
+            <Intensity value="1.0" />
+            <Color r="1" g="1" b="1" />
+        </Sun>
+    </Lights>
+    
+    <Materials>
+        <Lambertian name="grey">
+            <Color r="0.8" g="0.8" b="0.8" />
+        </Lambertian>
+    </Materials>
+    
+    <Objects>
+        <Mesh name="bunny">
+            <Position x="0.0" y="0.0" z="0.0" />
+            <Scale x="1.0" y="1.0" z="1.0" />
+            <Rotation x="0" y="0" z="0" />
+            <Material name="grey" />
+            <File name="bunny.obj" />
+        </Mesh>
+    </Objects>
+</ItemContainer>

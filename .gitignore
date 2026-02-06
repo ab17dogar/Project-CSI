@@ -5,7 +5,6 @@
 *.slo
 *.lo
 *.o
-*.obj
 
 # Precompiled Headers
 *.gch
@@ -31,7 +30,27 @@
 *.out
 *.app
 
+# IDE and system files
 .git
 .vscode
 .DS_Store
+.cache/
+*.swp
+*.swo
+*~
+
+# Build directories
 build/
+
+# Python virtual environment
+venv/
+
+# Temporary and test files
+imgui.ini
+temp_out.png
+test.png
+out.png
+--testing.png
+
+# Keep renders directory but ignore its contents for now
+# renders/
