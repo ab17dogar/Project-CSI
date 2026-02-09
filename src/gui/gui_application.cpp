@@ -452,6 +452,10 @@ void GuiApplication::RenderUI() {
         // Initialize texture
         m_Texture.Init(m_RenderWidth, m_RenderHeight);
 
+        // Build BVH for fast interactive rendering
+        m_World->pconfig->acceleration = AccelerationMethod::BVH;
+        m_World->buildBVH();
+
         std::cout << "Scene loaded for interactive preview." << std::endl;
       } else {
         std::cerr << "Failed to load scene: " << m_ScenePath << std::endl;
