@@ -1,4 +1,4 @@
-# 3D Ray Tracing Engine (Project CSI - Visual and Analytical Computing)
+# 3D-Ray Tracing Engine (Project CSI - Visual and Analytical Computing)
 
 <p align="center">
   <img src="renders/samples/cornell_water_final.png" alt="Cornell Water" width="600"/>
