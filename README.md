@@ -201,6 +201,9 @@ project-csi/
 
 ## 🎬 Demo Video
 
+### Quality Result Demo
+https://github.com/user-attachments/assets/403ced99-433a-45d6-b9a0-a9b650111db7
+
 ### Interactive GUI Demo
 https://github.com/user-attachments/assets/c7d5e7fc-0869-4a4a-a583-cdb865517261
 
