@@ -210,9 +210,6 @@ project-csi/
 https://github.com/user-attachments/assets/c7d5e7fc-0869-4a4a-a583-cdb865517261
 
 ### Real-time Rendering Demo
-https://github.com/user-attachments/assets/4a14e248-84c0-4e66-86cc-10c79c2a0900
-
-### Quality Result Demo
 https://github.com/user-attachments/assets/403ced99-433a-45d6-b9a0-a9b650111db7
 
 > Demonstration videos showing the interactive GUI and real-time rendering capabilities.
