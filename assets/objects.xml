@@ -90,25 +90,11 @@
             <V2 x="0" y="2" z="-3" />
             <Material   name="mattBrown" />
         </Triangle>
-        <!-- <Mesh name="bed01">
-            <Position   x="-2.5" y="0.0" z="-1.5" />
-            <Scale      x="0.2" y="0.2" z="0.2" />
-            <Rotation   x="0" y="-45" z="0" />
-            <Material   name="mattBrown" />
-            <File       name="dragon.obj" />
-        </Mesh>
-        <Mesh name="bunny">
-            <Position   x="0.5" y="0.0" z="-9" />
-            <Scale      x="1.0" y="1.0" z="1.0" />
-            <Rotation   x="0" y="-45" z="0" />
-            <Material   name="fuzzySilver" />
-            <File       name="bunny.obj" />
-        </Mesh> -->
-        <Mesh name="cube01">
+        <Mesh name="chair">
             <Position   x="2.0" y="0.0" z="0.0" />
             <Scale      x="0.5" y="0.5" z="0.5" />
             <Rotation   x="90" y="0" z="60" />
-            <File       name="dragon.obj" />
+            <File       name="officeChair.obj" />
         </Mesh>
     </Objects>
 </ItemContainer>

@@ -1,7 +1,7 @@
 # 3D Ray Tracing Engine (Project CSI - Visual and Analytical Computing)
 
 <p align="center">
-  <img src="renders/samples/cornell_water_final.png" alt="Cornell Box with Water" width="600"/>
+  <img src="renders/samples/sample_scene.png" alt="Hundred Spheres with Sharp Shadowing and Lighting using BVH" width="600"/>
 </p>
 
 A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built from scratch in C++17. This project implements physically-based rendering (PBR) techniques including GGX microfacet materials, Bounding Volume Hierarchy (BVH) acceleration, and AI-powered denoising.
@@ -196,6 +196,9 @@ project-csi/
 <img src="renders/samples/hundred_spheres_render.png" alt="100 Spheres" width="400"/>
 
 *BVH acceleration test with multiple objects*
+
+### Scene with Chair Obj rendering and light Source Materials
+<img src="renders/samples/output.png" alt="Scene with Chair Obj rendering and light Source Materials" width="400"/>
 
 ---
 
