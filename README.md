@@ -202,10 +202,10 @@ project-csi/
 ## 🎬 Demo Video
 
 ### Interactive GUI Demo
-https://github.com/user-attachments/assets/test_video1.mp4
+https://github.com/user-attachments/assets/c7d5e7fc-0869-4a4a-a583-cdb865517261
 
 ### Real-time Rendering Demo
-https://github.com/user-attachments/assets/test_video2.mp4
+https://github.com/user-attachments/assets/4a14e248-84c0-4e66-86cc-10c79c2a0900
 
 > Demonstration videos showing the interactive GUI and real-time rendering capabilities.
 
