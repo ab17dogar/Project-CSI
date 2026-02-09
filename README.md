@@ -197,9 +197,10 @@ project-csi/
 
 *BVH acceleration test with multiple objects*
 
-### Scene with Chair Obj rendering and light Source Materials
+### Random Scene
 <img src="renders/samples/output.png" alt="Scene with Chair Obj rendering and light Source Materials" width="400"/>
 
+*Scene with Chair Obj rendering and light Source Materials*
 ---
 
 ## 🎬 Demo Video
