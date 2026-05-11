@@ -239,7 +239,6 @@ Physically accurate BRDF with:
 ## 👥 Authors
 
 - **Abu Bakar** - Core Engine, BVH, I/O Systems
-- **M Shahman Butt** - Materials, MIS/NEE, GUI Integration
 
 **Supervisor:** Professor Olivier Staadt  
 **Institution:** University of Rostock  
