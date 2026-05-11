@@ -238,7 +238,7 @@ Physically accurate BRDF with:
 
 ## 👥 Authors
 
-- **Abu Bakar** - Core Engine, BVH, I/O Systems
+- **Abu Bakar**
 
 **Supervisor:** Professor Olivier Staadt  
 **Institution:** University of Rostock  
