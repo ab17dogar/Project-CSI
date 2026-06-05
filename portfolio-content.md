@@ -4,6 +4,10 @@ summary: "A physically-based Monte Carlo path tracer built from scratch in C++17
 tags: ["Graphics", "CV"]
 stack: ["C++17", "OpenGL", "Dear ImGui", "Intel OIDN", "CMake"]
 order: 1
+image: "https://raw.githubusercontent.com/ab17dogar/Project-CSI/main/renders/samples/hundred_spheres_render.png"
+links:
+  - label: "Demo video"
+    href: "https://github.com/ab17dogar/Project-CSI/blob/main/test_video1.mp4"
 ---
 
 ## Overview
