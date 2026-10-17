@@ -8,23 +8,27 @@ A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built fr
 
 ## 🎯 Features
 
-### Rendering
-- **Monte Carlo Path Tracing** with unbiased global illumination
-- **Russian Roulette** path termination for efficiency
-- **Multiple Importance Sampling (MIS)** with power heuristic
-- **Next Event Estimation (NEE)** for direct light sampling
+### Light transport
+- **Unidirectional Monte Carlo path tracer**, iterative, with a deterministic random stream per pixel sample (same seed, same image, for any thread count)
+- **Next event estimation** for every light type: area lights (triangles, quads, spheres), point lights, the sun, and the environment
+- **Multiple importance sampling** of light and BSDF sampling with the power heuristic. `--integrator mis|bsdf|nee` switches strategies for ablations
+- **Russian roulette** after a configurable depth, with the 1/η² radiance scaling factored out inside glass
+- **Importance-sampled HDR environments** (Radiance `.hdr`, or sRGB-decoded PNG/JPG)
 
-### Materials (PBR)
-- **Lambertian** diffuse surfaces
-- **Metal** with configurable roughness
-- **Dielectric** (glass/water) with Fresnel and refraction
-- **GGX Microfacet** for realistic metallic highlights
-- **Emissive** materials for area lights
+### Materials
+- Every material implements `sample` / `eval` / `pdf`, and the three are tested for mutual consistency
+- **Metallic-roughness PBR**: GGX microfacets, height-correlated Smith masking, visible-normal sampling, and energy-conserving diffuse coupling (Kelemen & Szirmay-Kalos)
+- **Smooth dielectrics** (glass, water) with exact Fresnel and radiance compression across the interface
+- Lambertian (solid or textured, sRGB-decoded), conductors, diffuse translucency, isotropic media
 
-### Acceleration & Optimization
-- **BVH (Bounding Volume Hierarchy)** with Surface Area Heuristic
-- **Multi-threaded tile-based rendering** using C++ threads
-- **Intel OIDN** AI denoiser integration
+### Acceleration
+- **Binned-SAH BVH**, flattened and traversed iteratively, with front-to-back ordering and early-exit shadow rays. Per-mesh BVHs store triangles by value
+- Multi-threaded tile renderer
+- Intel OIDN denoiser integration (optional)
+
+### Verification
+- **25 correctness tests** (`ctest`): χ² goodness-of-fit for every BSDF sampler, sample/pdf consistency for every light, analytic irradiance from rectangle, triangle, sphere, point, sun and environment lights under each strategy, a white furnace test, BVH vs. brute force, and thread-count determinism
+- Runs in CI on Linux and macOS, and under AddressSanitizer + UBSan
 
 ### Interactive GUI
 - Real-time **progressive rendering**
@@ -39,6 +43,9 @@ A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built fr
 For a comprehensive technical documentation covering all algorithms, mathematical foundations, and implementation details, see:
 
 📄 **[Project_Documentation.pdf](Project_Documentation.pdf)** - Complete 13-page technical report
+
+> Note: the PDF describes the original course submission. The integrator,
+> materials and BVH have since been rewritten (see Features above).
 
 The documentation includes:
 - Rendering equation and Monte Carlo integration theory
@@ -95,9 +102,13 @@ sudo apt install cmake build-essential libglfw3-dev libgl1-mesa-dev
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/project-csi.git
+git clone --recursive https://github.com/ab17dogar/project-csi.git
 cd project-csi
+# already cloned without --recursive? fetch the GUI dependencies:
+git submodule update --init
 ```
+The GUI needs the `glfw` and `imgui` submodules. Without them the core library,
+CLI and tests still build.
 
 ### 2. Create Build Directory
 ```bash
@@ -127,7 +138,7 @@ cmake --build . --config Release
 ### Interactive GUI Mode
 ```bash
 # From the build directory
-./RaytracerUI
+./RaytracerGUI
 ```
 
 ### Command-Line Renderer
@@ -146,12 +157,22 @@ cmake --build . --config Release
 | Flag | Description |
 |------|-------------|
 | `--scene <file>` | Scene XML file (default: objects.xml) |
-| `--out <file>` | Output image path |
+| `--out <file>` | Output image path (PNG is sRGB-encoded) |
+| `--pfm <file>` | Also write linear HDR radiance (for error measurements) |
 | `--width <W>` | Override image width |
 | `--samples <S>` | Samples per pixel |
-| `--bvh` | Use BVH acceleration (recommended) |
-| `--denoise` | Enable AI denoising (default) |
+| `--max-depth <N>` | Maximum bounces (1 = direct lighting only) |
+| `--integrator <X>` | `mis` (default), `bsdf` or `nee` |
+| `--seed <N>` | Random seed; same seed gives the same image |
+| `--bvh` / `--linear` | BVH (default) or brute-force intersection |
+| `--denoise` / `--no-denoise` | OIDN denoising (default on if available) |
 | `--preset <name>` | Use preset: Preview, Draft, Final |
+
+### Running the Tests
+```bash
+cmake --build build --target raytracer_tests
+ctest --test-dir build --output-on-failure   # or ./build/raytracer_tests [filter]
+```
 
 ---
 
@@ -204,6 +225,39 @@ project-csi/
 
 ---
 
+## 🔬 Phase 1: correct baseline (before → after)
+
+Cornell box with water, 320×320, 4 threads, no denoising. The old
+integrator had no working light sampling (see
+[docs/PHASE1_CHANGES.md](docs/PHASE1_CHANGES.md)), so the "before" image
+is noisy and also *wrong*: the ceiling light contributed no direct
+illumination.
+
+| Before, 64 spp (70.1 s) | After, 64 spp (5.3 s) | After, equal time: 832 spp (60.4 s) |
+|---|---|---|
+| <img src="renders/phase1/cornell_before_64spp.png" width="260"/> | <img src="renders/phase1/cornell_after_64spp.png" width="260"/> | <img src="renders/phase1/cornell_after_equal_time.png" width="260"/> |
+
+Light transport strategies at equal samples (16 spp). All three converge to
+the same image (verified by the test suite); they differ only in noise:
+
+| BSDF sampling only | Light sampling only (NEE) | MIS (default) |
+|---|---|---|
+| <img src="renders/phase1/strategy_bsdf_16spp.png" width="260"/> | <img src="renders/phase1/strategy_nee_16spp.png" width="260"/> | <img src="renders/phase1/strategy_mis_16spp.png" width="260"/> |
+
+Render time at equal settings (same machine, `--no-denoise`):
+
+| Scene | Before | After |
+|---|---|---|
+| Cornell water (7k triangles), 320², 64 spp | 70.1 s | 5.3 s |
+| Hundred spheres, 400², 32 spp | 5.1 s | 1.4 s |
+| GGX test, 400², 32 spp | 0.88 s | 0.50 s |
+| Stanford bunny (144k triangles), 400², 16 spp | did not finish in 300 s (O(n²) BVH build) | 1.2 s |
+
+The new renderer also does more work per sample: one shadow ray per bounce
+for next event estimation.
+
+---
+
 ## 🎬 Demo Video
 
 ### Interactive GUI Demo
@@ -224,9 +278,14 @@ Lo(x,ωo) = Le(x,ωo) + ∫ f(x,ωi,ωo) Li(x,ωi) cos(θi) dωi
 ```
 
 ### BVH Acceleration
-Reduces ray-scene intersection from **O(n)** to **O(log n)** using:
+Reduces ray-scene intersection from **O(n)** to roughly **O(log n)** using:
 - Axis-Aligned Bounding Boxes (AABB)
-- Surface Area Heuristic (SAH) for optimal tree construction
+- Binned Surface Area Heuristic (SAH) construction (16 bins)
+
+### Research Direction
+See [docs/RESEARCH_DIRECTION.md](docs/RESEARCH_DIRECTION.md): next event
+estimation from 3D Gaussian radiance fields, the literature check behind it,
+and the evaluation plan.
 
 ### GGX Microfacet Model
 Physically accurate BRDF with:
