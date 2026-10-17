@@ -58,10 +58,10 @@ out.png
 # Extra local build trees
 build-*/
 
-# Benchmark images are large and regenerable: keep logs, metadata and plots
-# in git, not the images themselves.
-benchmarks/references/*/*.pfm
-benchmarks/references/*/*.png
+# Benchmark references are large and regenerable (benchmarks/render_references.py);
+# each results run records their provenance in its run.json. For results,
+# keep logs, metadata and plots in git, not the images.
+benchmarks/references/
 benchmarks/results/*/*/*.pfm
 benchmarks/results/*/*/*.png
 !benchmarks/results/*/plots/*.png

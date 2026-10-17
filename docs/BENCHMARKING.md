@@ -12,7 +12,9 @@ python3 benchmarks/run_benchmarks.py --time 60 --repeats 3
 python3 benchmarks/plot_convergence.py benchmarks/results/<run>   # needs matplotlib
 ```
 
-`run_benchmarks.py` prints where it wrote its results. Each run directory holds
+References live in `benchmarks/references/` and are not committed (they are
+large and regenerable). Each results run copies their metadata into its
+`run.json`. `run_benchmarks.py` prints where it wrote its results. Each run directory holds
 per-pass CSV logs, final images, `summary.csv`, `run.json` (commit, machine,
 settings) and, after plotting, `plots/` with figures and a markdown table.
 
