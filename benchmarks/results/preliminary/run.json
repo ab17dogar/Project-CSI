@@ -1,0 +1,117 @@
+{
+  "created": "2026-10-17T22:01:44+00:00",
+  "renderer_commit": "588e930",
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "logical_cores": 4,
+    "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+  },
+  "time_budget": 30.0,
+  "threads": 4,
+  "methods": {
+    "mis": [
+      "--integrator",
+      "mis"
+    ],
+    "bsdf": [
+      "--integrator",
+      "bsdf"
+    ],
+    "nee": [
+      "--integrator",
+      "nee"
+    ]
+  },
+  "references": {
+    "cornell_box": {
+      "scene": "cornell_box",
+      "spp": 16384,
+      "seed": 1000003,
+      "integrator": "mis",
+      "render_seconds": 297.275407,
+      "wall_seconds": 297.32019090652466,
+      "renderer_commit": "588e930",
+      "created": "2026-10-17T21:56:12+00:00",
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+        "logical_cores": 4,
+        "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+      }
+    },
+    "cornell_glossy": {
+      "scene": "cornell_glossy",
+      "spp": 16384,
+      "seed": 1000003,
+      "integrator": "mis",
+      "render_seconds": 331.0483093,
+      "wall_seconds": 331.2326464653015,
+      "renderer_commit": "588e930",
+      "created": "2026-10-17T22:01:43+00:00",
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+        "logical_cores": 4,
+        "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+      }
+    },
+    "veach_mis": {
+      "scene": "veach_mis",
+      "spp": 16384,
+      "seed": 1000003,
+      "integrator": "mis",
+      "render_seconds": 520.2623713,
+      "wall_seconds": 520.4334819316864,
+      "renderer_commit": "d56cfdd-dirty",
+      "created": "2026-10-17T21:07:05+00:00",
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+        "logical_cores": 4,
+        "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+      }
+    },
+    "glass_caustic": {
+      "scene": "glass_caustic",
+      "spp": 16384,
+      "seed": 1000003,
+      "integrator": "mis",
+      "render_seconds": 337.9482967,
+      "wall_seconds": 337.98404264450073,
+      "renderer_commit": "117693e",
+      "created": "2026-10-17T21:12:43+00:00",
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+        "logical_cores": 4,
+        "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+      }
+    },
+    "env_objects": {
+      "scene": "env_objects",
+      "spp": 16384,
+      "seed": 1000003,
+      "integrator": "mis",
+      "render_seconds": 236.2699745,
+      "wall_seconds": 236.44727659225464,
+      "renderer_commit": "33f4e35",
+      "created": "2026-10-17T21:16:40+00:00",
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+        "logical_cores": 4,
+        "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+      }
+    },
+    "sun_sky_bunny": {
+      "scene": "sun_sky_bunny",
+      "spp": 16384,
+      "seed": 1000003,
+      "integrator": "mis",
+      "render_seconds": 350.8162731,
+      "wall_seconds": 351.793594121933,
+      "renderer_commit": "33f4e35",
+      "created": "2026-10-17T21:22:32+00:00",
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+        "logical_cores": 4,
+        "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+      }
+    }
+  }
+}

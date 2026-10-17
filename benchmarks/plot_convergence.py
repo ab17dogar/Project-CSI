@@ -81,7 +81,7 @@ def curve(runs, key):
     return grid, means
 
 
-def plot_metric(plt, data, key, ylabel, out_base, title):
+def plot_metric(plt, data, key, ylabel, out_base, title, slope_guide=False):
     scenes = [s for s in common.SCENES if s in data] + sorted(set(data) - set(common.SCENES))
     cols = min(3, len(scenes))
     rows_n = math.ceil(len(scenes) / cols)
@@ -101,28 +101,40 @@ def plot_metric(plt, data, key, ylabel, out_base, title):
                 methods_seen.append(method)
             # Markers are a secondary (print / color-vision) channel, not data
             # density: about eight per curve.
+            # MIS on top: it is the reference method, and where it overlaps
+            # another curve the overlap is the finding.
             ax.plot(t, e, color=st["color"], lw=1.6, marker=st["marker"], ms=4.5,
                     mec=SURFACE, mew=1.2, markevery=max(1, len(t) // 8),
-                    label=st["label"], zorder=3)
+                    label=st["label"], zorder=4 if method == "mis" else 3)
             ends.append((e[-1], t[-1], st["label"]))
-        # Monte Carlo reference slope: error proportional to 1/time.
-        # Drawn below every curve so it never hides one.
-        if ends:
+        # Monte Carlo reference slope: a variance-like metric (MSE, relMSE)
+        # falls as 1/time. FLIP does not, so it gets no guide. Drawn below
+        # every curve so it never hides one.
+        if ends and slope_guide:
             e_end, t_end, _ = min(ends)
-            e0 = e_end * 0.35
+            e0 = e_end * 0.15
             ts = [t_end / 30, t_end]
             ax.plot(ts, [e0 * 30, e0], color=MUTED, lw=0.8, zorder=1)
             ax.annotate("1/t", (ts[0], e0 * 30), xytext=(-3, 0), textcoords="offset points",
                         ha="right", va="center", color=MUTED, fontsize=7)
-        # Direct labels at line ends, skipped where they would collide (the
-        # legend still identifies every series).
-        placed = []
+        # Direct labels at line ends. Curves ending within ~10% of each other
+        # overlap, and share one label ("Light sampling ≈ MIS") so the overlap
+        # reads as agreement. Other near-collisions keep the MIS label and leave
+        # the rest to the legend.
+        groups = []
         for e_end, t_end, label in sorted(ends):
             ly = math.log10(e_end)
-            if all(abs(ly - p) > 0.12 for p in placed):
-                ax.annotate(label.split(" (")[0], (t_end, e_end), xytext=(4, 0),
+            name = label.split(" (")[0]
+            if groups and abs(ly - groups[-1]["ly"]) <= 0.04:
+                groups[-1]["labels"].append(name)
+            else:
+                groups.append({"ly": ly, "e": e_end, "t": t_end, "labels": [name]})
+        placed = []
+        for g in sorted(groups, key=lambda g: "MIS" not in g["labels"]):
+            if all(abs(g["ly"] - p) > 0.1 for p in placed):
+                ax.annotate(" \u2248 ".join(g["labels"]), (g["t"], g["e"]), xytext=(4, 0),
                             textcoords="offset points", va="center", fontsize=7, color=INK_2)
-                placed.append(ly)
+                placed.append(g["ly"])
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_title(scene.replace("_", " "), color=INK, fontsize=9, loc="left")
@@ -144,7 +156,7 @@ def plot_metric(plt, data, key, ylabel, out_base, title):
     fig.legend(handles=handles, loc="upper center", ncol=len(handles), frameon=False,
                fontsize=8, labelcolor=INK, bbox_to_anchor=(0.5, 1.0))
     fig.suptitle(title, color=INK, fontsize=10, y=1.05)
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
     for ext in ("png", "pdf"):
         fig.savefig(f"{out_base}.{ext}", dpi=200, facecolor=SURFACE, bbox_inches="tight")
     plt.close(fig)
@@ -197,7 +209,7 @@ def main():
     out = args.run_dir / "plots"
     out.mkdir(exist_ok=True)
     plot_metric(plt, data, "relmse_corrected", "relMSE", out / "convergence_relmse",
-                "Equal-time convergence: relative MSE (lower is better)")
+                "Equal-time convergence: relative MSE (lower is better)", slope_guide=True)
     plot_metric(plt, data, "flip", "HDR-FLIP", out / "convergence_flip",
                 "Equal-time convergence: HDR-FLIP (lower is better)")
     write_summary(data, out / "summary.md")

@@ -276,6 +276,31 @@ for next event estimation.
 
 ---
 
+## 📏 Phase 2: equal-time measurement
+
+Six benchmark scenes, three light-transport strategies, 30 s per render,
+two seeds, error against 16384-spp references
+([docs/BENCHMARKING.md](docs/BENCHMARKING.md#results-preliminary) has the
+protocol, the full table and the caveats):
+
+<img src="benchmarks/results/preliminary/plots/convergence_relmse.png" alt="Equal-time relMSE convergence of MIS, BSDF sampling and light sampling on six scenes" width="800"/>
+
+| Scene | BSDF sampling / MIS | Light sampling / MIS |
+|---|---:|---:|
+| Cornell box | 71x | 0.99x |
+| Cornell glossy | 5.8x | 3.8x |
+| Veach MIS | 441x | 3924x |
+| Glass caustic | 13x | 0.99x |
+| Objects under HDR sky | 9.0x | 1.04x |
+| Bunny, sun and sky | 0.99x | 41x |
+
+Ratios are equal-time relMSE (reference noise removed); above 1 means more
+error than MIS. MIS stays within 1% of the better single strategy in every
+scene. These are preliminary numbers from a 4-core cloud container; the
+references will be re-rendered at higher sample counts before publication.
+
+---
+
 ## 🎬 Demo Video
 
 ### Interactive GUI Demo

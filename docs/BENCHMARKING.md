@@ -114,6 +114,71 @@ light (`<TwoSided value="0"/>` on an `Emissive` material), NEE and MIS give
 the same variance, as theory predicts for a diffuse scene. The scene design
 was wrong, not the integrator.
 
+## Results (preliminary)
+
+`benchmarks/results/preliminary/`: 30 s per render, 2 seeds per method,
+4 threads on a cloud container with 4 logical cores (Xeon, 2.8 GHz), 16384-spp references.
+The per-pass logs, `summary.csv`, `run.json` and the plots are committed; the
+renders and references are not (regenerate them with the scripts).
+
+![relMSE convergence](../benchmarks/results/preliminary/plots/convergence_relmse.png)
+
+Final relMSE (reference-noise corrected, mean over seeds) and the error of
+each single strategy relative to MIS at equal time (> 1 means worse than
+MIS). Full table: [`plots/summary.md`](../benchmarks/results/preliminary/plots/summary.md).
+HDR-FLIP plot: [`convergence_flip.png`](../benchmarks/results/preliminary/plots/convergence_flip.png).
+
+| Scene | MIS relMSE | BSDF / MIS | NEE / MIS | MIS HDR-FLIP |
+|---|---:|---:|---:|---:|
+| `cornell_box` | 1.31e-4 | 71 | 0.99 | 0.029 |
+| `cornell_glossy` | 2.11e-3 | 5.8 | 3.8 | 0.065 |
+| `veach_mis` | 1.35e-4 | 441 | 3924 | 0.015 |
+| `glass_caustic` | 2.41e-2 | 13 | 0.99 | 0.064 |
+| `env_objects` | 3.06e-2 | 9.0 | 1.04 | 0.018 |
+| `sun_sky_bunny` | 4.55e-5 | 0.99 | 41 | 0.004 |
+
+What the numbers say:
+
+- **MIS is within 1% of the better single strategy in every scene, and up
+  to three orders of magnitude better than the worse one.** That is the
+  behaviour the power heuristic promises, measured rather than assumed. The
+  0.99 ratios are inside the seed-to-seed spread.
+- **`cornell_glossy` is the only scene where MIS beats both strategies**
+  (3.8x and 5.8x): it mixes diffuse walls, where NEE wins, with a glossy floor
+  and rough copper, where BSDF sampling wins. `veach_mis` shows the two
+  failure modes in isolation: NEE fails on the sharp plates under the large
+  lights, BSDF sampling on the rough plates under the small ones.
+- **BSDF sampling renders 1.1-1.8x more samples in the same time** (no shadow
+  rays) and still loses everywhere except `sun_sky_bunny`.
+- **`sun_sky_bunny`'s NEE weakness is the sky sampler, not MIS.** The sun is
+  a delta light, so every strategy samples it explicitly; the strategies only
+  differ on the sky, which `sky_light` samples uniformly over the sphere.
+  Cosine-weighted BSDF sampling fits a smooth sky better. Importance-sampling
+  the sky would close the gap, and MIS already matches the better strategy.
+- **All curves reach the 1/t slope** once the rare high-energy paths that
+  dominate the first passes (the bumps in `glass_caustic` and `env_objects`
+  below 1 s) are resolved.
+
+Caveats before quoting any of this:
+
+- **Hardware.** A shared 4-core cloud container. Absolute times and Mrays/s
+  are only comparable within this run. The ratios are what matter.
+- **References.** 16384 spp, 4-13x the test runs' final sample counts,
+  short of the order of magnitude asked for above. The relMSE
+  correction removes the reference noise on average, but HDR-FLIP has no such
+  correction: on `glass_caustic` the FLIP curves flatten near 0.064 because
+  the reference itself is noisy there.
+- **Mixed reference commits.** The `cornell_*` references were rendered at
+  `588e930` (after the one-sided light fix). The others were rendered before
+  that commit, at `d56cfdd` with the uncommitted Phase 2 changes,
+  `117693e` and `33f4e35`, all of which have the same light transport.
+  `run.json` records the commit of each reference.
+- **Two seeds.** `veach_mis` NEE varies 2.2x between seeds (relMSE 0.33 and
+  0.73): its error is heavy-tailed, so 3924 is an order-of-magnitude figure.
+- For publication: re-render the references at 10^5-10^6 spp on a dedicated
+  machine, use at least 5 seeds, and report a confidence interval on each
+  ratio.
+
 ## Adding a method
 
 Add an entry to `METHODS` in `benchmarks/run_benchmarks.py` mapping a label
