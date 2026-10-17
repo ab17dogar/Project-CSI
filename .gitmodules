@@ -1,0 +1,7 @@
+[submodule "src/3rdParty/glfw"]
+	path = src/3rdParty/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "src/3rdParty/imgui"]
+	path = src/3rdParty/imgui
+	url = https://github.com/ocornut/imgui.git
+	branch = docking

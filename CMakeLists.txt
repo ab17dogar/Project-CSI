@@ -169,7 +169,23 @@ include(CPack)
 # ==========================================
 # UI Dependencies (GLFW + ImGui)
 # ==========================================
+# The GUI depends on the glfw and imgui git submodules. A clone without
+# `git submodule update --init` still builds the core library and CLI.
+option(RAYTRACER_BUILD_GUI "Build the interactive ImGui front-end" ON)
+if(RAYTRACER_BUILD_GUI AND NOT (EXISTS "${CMAKE_SOURCE_DIR}/src/3rdParty/glfw/CMakeLists.txt"
+                               AND EXISTS "${CMAKE_SOURCE_DIR}/src/3rdParty/imgui/imgui.cpp"))
+    message(WARNING "glfw/imgui submodules missing - skipping RaytracerGUI. "
+                    "Run `git submodule update --init` to build it.")
+    set(RAYTRACER_BUILD_GUI OFF)
+endif()
+
+if(RAYTRACER_BUILD_GUI)
 # 1. GLFW
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
 add_subdirectory(src/3rdParty/glfw)
 
 # 2. Dear ImGui
@@ -216,3 +232,4 @@ if(APPLE)
 elseif(UNIX)
     target_link_libraries(RaytracerGUI PRIVATE GL)
 endif()
+endif() # RAYTRACER_BUILD_GUI

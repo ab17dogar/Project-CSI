@@ -54,3 +54,6 @@ out.png
 
 # Keep renders directory but ignore its contents for now
 # renders/
+
+# Extra local build trees
+build-*/
