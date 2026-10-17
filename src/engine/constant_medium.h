@@ -13,6 +13,12 @@
  * Uses exponential probability distribution to determine where
  * rays scatter within the volume. Works with isotropic material
  * for realistic volumetric scattering.
+ *
+ * Because hit() samples a free-flight distance, a shadow ray through the
+ * medium is blocked with probability 1 - exp(-density * length). That makes
+ * shadow-ray visibility an unbiased binary estimate of transmittance, so
+ * next event estimation works through fog without special handling. The
+ * boundary must be a closed convex shape.
  */
 class constant_medium : public hittable {
 public:
@@ -87,7 +93,8 @@ public:
     // Arbitrary normal (not used for isotropic scattering)
     rec.normal = vec3(1, 0, 0);
     rec.front_face = true;
-    rec.mat_ptr = phase_function;
+    rec.mat_ptr = phase_function.get();
+    rec.area_light = nullptr;
 
     return true;
   }

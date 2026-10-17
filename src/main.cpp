@@ -87,7 +87,8 @@ shared_ptr<world> pworld;
 
 void SaveImage(world &sceneWorld, const string &fileName,
                const vector<color> &bitmap);
-// int testObjLoader();
+void SavePFM(world &sceneWorld, const string &fileName,
+             const vector<color> &bitmap);
 
 // Logging flags defined in util/logging.cpp
 
@@ -100,8 +101,13 @@ int main(int argc, char **argv) {
   bool tile_debug = false;
   int widthOverride = -1;
   int samplesOverride = -1;
-  bool useBVH = false;
+  int accelOverride = -1; // -1: scene default (BVH), 0: linear, 1: BVH
   bool useDenoiser = true;
+  string pfmPath;
+  int maxDepthOverride = -1;
+  int rrDepthOverride = -1;
+  long long seedOverride = -1;
+  string integratorName;
   const Raytracer::presets::RenderPresetDefinition *presetDefinition = nullptr;
 
   // Simple argv parser
@@ -122,9 +128,25 @@ int main(int argc, char **argv) {
     } else if (a == "--samples" && i + 1 < argc) {
       samplesOverride = atoi(argv[++i]);
     } else if (a == "--bvh") {
-      useBVH = true;
+      accelOverride = 1;
     } else if (a == "--linear") {
-      useBVH = false;
+      accelOverride = 0;
+    } else if (a == "--pfm" && i + 1 < argc) {
+      pfmPath = argv[++i];
+    } else if (a == "--max-depth" && i + 1 < argc) {
+      maxDepthOverride = atoi(argv[++i]);
+    } else if (a == "--rr-depth" && i + 1 < argc) {
+      rrDepthOverride = atoi(argv[++i]);
+    } else if (a == "--seed" && i + 1 < argc) {
+      seedOverride = atoll(argv[++i]);
+    } else if (a == "--integrator" && i + 1 < argc) {
+      integratorName = argv[++i];
+      if (integratorName != "mis" && integratorName != "bsdf" &&
+          integratorName != "nee") {
+        cerr << "Unknown integrator '" << integratorName
+             << "' (expected mis, bsdf or nee)" << endl;
+        return 4;
+      }
     } else if (a == "--no-denoise") {
       useDenoiser = false;
     } else if (a == "--denoise") {
@@ -153,9 +175,13 @@ int main(int argc, char **argv) {
           << "  --preset NAME    Use preset (Preview, Draft, Final)\n"
           << "  --width W        Override image width\n"
           << "  --samples S      Override samples per pixel\n"
-          << "  --bvh            Use BVH acceleration (faster for large "
-             "scenes)\n"
-          << "  --linear         Use linear traversal\n"
+          << "  --bvh            Use BVH acceleration (default)\n"
+          << "  --linear         Use linear traversal (slow; for testing)\n"
+          << "  --integrator X   Light transport: mis (default), bsdf, nee\n"
+          << "  --max-depth N    Maximum bounces (1 = direct lighting)\n"
+          << "  --rr-depth N     Bounces before Russian roulette\n"
+          << "  --seed N         Random seed (same seed -> same image)\n"
+          << "  --pfm <file>     Also write linear HDR radiance (.pfm)\n"
           << "  --denoise        Enable OIDN AI denoiser (default)\n"
           << "  --no-denoise     Disable denoiser\n"
           << "  --quiet          Suppress progress output\n"
@@ -211,10 +237,26 @@ int main(int argc, char **argv) {
     pworld->pconfig->SAMPLES_PER_PIXEL = samplesOverride;
   }
 
-  // Apply BVH acceleration if requested
-  if (useBVH) {
+  // Apply acceleration / integrator overrides
+  if (accelOverride == 1) {
     pworld->pconfig->acceleration = AccelerationMethod::BVH;
+  } else if (accelOverride == 0) {
+    pworld->pconfig->acceleration = AccelerationMethod::LINEAR;
   }
+  const bool useBVH =
+      pworld->pconfig->acceleration == AccelerationMethod::BVH;
+  if (maxDepthOverride >= 0)
+    pworld->pconfig->MAX_DEPTH = maxDepthOverride;
+  if (rrDepthOverride >= 0)
+    pworld->pconfig->rouletteDepth = rrDepthOverride;
+  if (seedOverride >= 0)
+    pworld->pconfig->seed = static_cast<uint64_t>(seedOverride);
+  if (integratorName == "bsdf")
+    pworld->pconfig->lightStrategy = LightStrategy::BSDF;
+  else if (integratorName == "nee")
+    pworld->pconfig->lightStrategy = LightStrategy::NEE;
+  else if (integratorName == "mis")
+    pworld->pconfig->lightStrategy = LightStrategy::MIS;
 
   // Apply denoiser setting
   pworld->pconfig->enableDenoiser = useDenoiser;
@@ -258,6 +300,12 @@ int main(int argc, char **argv) {
          << pworld->pconfig->IMAGE_HEIGHT << "\n";
     cerr << "Samples: " << pworld->pconfig->SAMPLES_PER_PIXEL << "\n";
     cerr << "Acceleration: " << (useBVH ? "BVH" : "Linear") << "\n";
+    cerr << "Integrator: "
+         << (pworld->pconfig->lightStrategy == LightStrategy::MIS    ? "mis"
+             : pworld->pconfig->lightStrategy == LightStrategy::BSDF ? "bsdf"
+                                                                     : "nee")
+         << ", max depth " << pworld->pconfig->MAX_DEPTH << ", seed "
+         << pworld->pconfig->seed << "\n";
     if (presetDefinition) {
       cerr << "Preset: " << presetDefinition->name << "\n";
     }
@@ -307,8 +355,44 @@ int main(int argc, char **argv) {
   }
 
   SaveImage(*pworld, outPath, bitmap);
+  if (!pfmPath.empty())
+    SavePFM(*pworld, pfmPath, bitmap);
 
   return 0;
+}
+
+static double linear_to_srgb(double c) {
+  if (!(c > 0.0))
+    return 0.0;
+  return c <= 0.0031308 ? 12.92 * c : 1.055 * std::pow(c, 1.0 / 2.4) - 0.055;
+}
+
+// Portable float map: linear radiance per pixel, bottom row first. This is
+// the format used for error measurements against reference renders.
+void SavePFM(world &sceneWorld, const string &fileName,
+             const vector<color> &bitmap) {
+  const int W = sceneWorld.GetImageWidth();
+  const int H = sceneWorld.GetImageHeight();
+  const double scale = 1.0 / sceneWorld.GetSamplesPerPixel();
+  ofstream out(fileName, ios::binary);
+  if (!out) {
+    cerr << "Failed to write PFM to " << fileName << "\n";
+    return;
+  }
+  out << "PF\n" << W << ' ' << H << "\n-1.0\n"; // negative: little endian
+  std::vector<float> row(static_cast<size_t>(W) * 3);
+  for (int j = H - 1; j >= 0; --j) {
+    for (int i = 0; i < W; ++i) {
+      const color c = bitmap[static_cast<size_t>(W) * j + i] * scale;
+      row[3 * i + 0] = static_cast<float>(c.x());
+      row[3 * i + 1] = static_cast<float>(c.y());
+      row[3 * i + 2] = static_cast<float>(c.z());
+    }
+    out.write(reinterpret_cast<const char *>(row.data()),
+              static_cast<std::streamsize>(row.size() * sizeof(float)));
+  }
+  if (!g_quiet.load())
+    cerr << "Saved PFM to " << fileName << "\n";
 }
 
 void SaveImage(world &sceneWorld, const string &fileName,
@@ -337,10 +421,12 @@ void SaveImage(world &sceneWorld, const string &fileName,
       if (b != b)
         b = 0.0;
 
+      // Mean radiance, then the sRGB transfer function (the old sqrt was a
+      // gamma-2.0 approximation).
       auto scale = 1.0 / sceneWorld.GetSamplesPerPixel();
-      r = sqrt(scale * r);
-      g = sqrt(scale * g);
-      b = sqrt(scale * b);
+      r = linear_to_srgb(scale * r);
+      g = linear_to_srgb(scale * g);
+      b = linear_to_srgb(scale * b);
 
       unsigned char rc = static_cast<unsigned char>(256 * clamp(r, 0.0, 0.999));
       unsigned char gc = static_cast<unsigned char>(256 * clamp(g, 0.0, 0.999));

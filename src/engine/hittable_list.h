@@ -19,7 +19,9 @@ class hittable_list : public hittable {
         void add(shared_ptr<hittable> object) { objects.push_back(object); }
 
         virtual bool hit(const ray& r, double t_min, double t_max, hit_record& rec) const override;
+        virtual bool hit_any(const ray& r, double t_min, double t_max) const override;
         virtual bool bounding_box(aabb& output_box) const override;
+        virtual void collect_lights(std::vector<std::shared_ptr<light>>& out) override;
 
     public:
         std::vector<shared_ptr<hittable>> objects;

@@ -1,22 +1,15 @@
 
 #include "triangle.h"
 #include "aabb.h"
+#include "light.h"
+#include "material.h"
 #include <cmath>
 
 // Constructor without UVs (backward compatible)
 triangle::triangle(const vec3 &v0, const vec3 &v1, const vec3 &v2,
                    shared_ptr<material> mat_ptr)
-    : v0(v0), v1(v1), v2(v2), mat_ptr(mat_ptr), has_uvs(false) {
-  // Check for degenerate triangles (zero area)
-  vec3 edge1 = v1 - v0;
-  vec3 edge2 = v2 - v0;
-  vec3 normal = cross(edge1, edge2);
-  float areaSquared = normal.length();
-  const float threshold = 1e-8f;
-  if (areaSquared < threshold) {
-    degenerate = true;
-    // Note: Degenerate triangles are silently skipped in hit()
-  }
+    : v0(v0), v1(v1), v2(v2), has_uvs(false), mat_ptr(mat_ptr) {
+  precompute();
 }
 
 // Constructor with UVs for texture mapping
@@ -24,87 +17,90 @@ triangle::triangle(const vec3 &v0, const vec3 &v1, const vec3 &v2,
                    const vec3 &uv0, const vec3 &uv1, const vec3 &uv2,
                    shared_ptr<material> mat_ptr)
     : v0(v0), v1(v1), v2(v2), uv0(uv0), uv1(uv1), uv2(uv2), has_uvs(true),
-      mat_ptr(mat_ptr), degenerate(false) {
-  // Check for degenerate triangles
-  vec3 edge1 = v1 - v0;
-  vec3 edge2 = v2 - v0;
-  vec3 normal = cross(edge1, edge2);
-  float areaSquared = normal.length();
-  const float threshold = 1e-8f;
-  if (areaSquared < threshold) {
-    degenerate = true;
-    // Note: Degenerate triangles are silently skipped in hit()
-  }
+      mat_ptr(mat_ptr) {
+  precompute();
+}
+
+void triangle::precompute() {
+  e1 = v1 - v0;
+  e2 = v2 - v0;
+  const vec3 c = cross(e1, e2);
+  const double len = c.length();
+  // Relative test: a fixed threshold rejected every small triangle of a
+  // finely tessellated mesh.
+  const double scale = e1.length() * e2.length();
+  degenerate = !(len > 1e-14 * scale) || !(len > 0.0);
+  n_geom = degenerate ? vec3(0, 0, 1) : c / len;
+}
+
+double triangle::intersect(const ray &r, double t_min, double t_max,
+                           double &b1, double &b2) const {
+  if (degenerate)
+    return -1.0;
+
+  // Möller–Trumbore intersection algorithm with barycentric coordinates
+  const vec3 h = cross(r.dir, e2);
+  const double a = dot(e1, h);
+  if (a == 0.0)
+    return -1.0; // ray parallel to the triangle plane
+
+  const double f = 1.0 / a;
+  const vec3 s = r.orig - v0;
+  b1 = f * dot(s, h);
+  if (b1 < 0.0 || b1 > 1.0)
+    return -1.0;
+
+  const vec3 q = cross(s, e1);
+  b2 = f * dot(r.dir, q);
+  if (b2 < 0.0 || b1 + b2 > 1.0)
+    return -1.0;
+
+  const double t = f * dot(e2, q);
+  if (t < t_min || t > t_max)
+    return -1.0;
+  return t;
 }
 
 bool triangle::hit(const ray &r, double t_min, double t_max,
                    hit_record &rec) const {
-  if (degenerate)
+  double b1, b2;
+  const double t = intersect(r, t_min, t_max, b1, b2);
+  if (t < 0.0)
     return false;
 
-  // Möller–Trumbore intersection algorithm with barycentric coordinates
-  vec3 edge1 = v1 - v0;
-  vec3 edge2 = v2 - v0;
-  vec3 h = cross(r.dir, edge2);
-  double a = dot(edge1, h);
-
-  if (fabs(a) < EPSILON)
-    return false; // Ray parallel to triangle
-
-  double f = 1.0 / a;
-  vec3 s = r.orig - v0;
-  double u_bary = f * dot(s, h);
-
-  if (u_bary < 0.0 || u_bary > 1.0)
-    return false;
-
-  vec3 q = cross(s, edge1);
-  double v_bary = f * dot(r.dir, q);
-
-  if (v_bary < 0.0 || u_bary + v_bary > 1.0)
-    return false;
-
-  double t = f * dot(edge2, q);
-
-  if (t < t_min || t > t_max)
-    return false;
-
-  // Valid hit - compute barycentric coordinate w
-  double w_bary = 1.0 - u_bary - v_bary;
-
+  const double b0 = 1.0 - b1 - b2;
   rec.t = t;
-  rec.p = r.orig + t * r.dir;
-
-  // Compute normal
-  vec3 outward_normal = unit_vector(cross(edge1, edge2));
-  rec.set_face_normal(r, outward_normal);
-  rec.mat_ptr = mat_ptr;
+  rec.p = b0 * v0 + b1 * v1 + b2 * v2; // on the plane, unlike o + t*d
+  rec.set_face_normal(r, n_geom);
+  rec.mat_ptr = mat_ptr.get();
+  rec.area_light = emitter;
 
   // Interpolate UV coordinates using barycentric coordinates
   if (has_uvs) {
-    // UV = w*uv0 + u*uv1 + v*uv2
-    rec.u = w_bary * uv0.x() + u_bary * uv1.x() + v_bary * uv2.x();
-    rec.v = w_bary * uv0.y() + u_bary * uv1.y() + v_bary * uv2.y();
+    rec.u = b0 * uv0.x() + b1 * uv1.x() + b2 * uv2.x();
+    rec.v = b0 * uv0.y() + b1 * uv1.y() + b2 * uv2.y();
   } else {
     // Default UVs based on barycentric coordinates
-    rec.u = u_bary;
-    rec.v = v_bary;
+    rec.u = b1;
+    rec.v = b2;
   }
-
   return true;
 }
 
+bool triangle::hit_any(const ray &r, double t_min, double t_max) const {
+  double b1, b2;
+  return intersect(r, t_min, t_max, b1, b2) >= 0.0;
+}
+
 bool triangle::bounding_box(aabb &output_box) const {
-  const double padding = 0.0001;
-
-  point3 min_point(fmin(fmin(v0.x(), v1.x()), v2.x()) - padding,
-                   fmin(fmin(v0.y(), v1.y()), v2.y()) - padding,
-                   fmin(fmin(v0.z(), v1.z()), v2.z()) - padding);
-
-  point3 max_point(fmax(fmax(v0.x(), v1.x()), v2.x()) + padding,
-                   fmax(fmax(v0.y(), v1.y()), v2.y()) + padding,
-                   fmax(fmax(v0.z(), v1.z()), v2.z()) + padding);
-
-  output_box = aabb(min_point, max_point);
+  output_box = aabb(vmin(v0, vmin(v1, v2)), vmax(v0, vmax(v1, v2)));
   return true;
+}
+
+void triangle::collect_lights(std::vector<std::shared_ptr<light>> &out) {
+  if (degenerate || !mat_ptr || !mat_ptr->is_emissive())
+    return;
+  auto l = area_light::make_triangle(v0, v1, v2, mat_ptr.get());
+  emitter = l.get();
+  out.push_back(std::move(l));
 }

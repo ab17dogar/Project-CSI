@@ -11,7 +11,7 @@
 #include "../3rdParty/ObjLoader/OBJ_Loader.h"
 
 #include "../util/logging.h"
-#include "bvh_node.h"
+#include "light.h"
 #include "dielectric.h"
 #include "emissive.h"
 #include "lambertian.h"
@@ -204,26 +204,41 @@ void mesh::buildMeshBVH() {
     return;
   }
 
-  std::vector<std::shared_ptr<hittable>> tri_ptrs;
-  tri_ptrs.reserve(triangleList.size());
+  std::vector<aabb> boxes(triangleList.size());
+  for (size_t i = 0; i < triangleList.size(); ++i)
+    triangleList[i].bounding_box(boxes[i]);
+  mesh_bvh.build(boxes, 4);
 
-  for (const auto &tri : triangleList) {
-    tri_ptrs.push_back(std::make_shared<triangle>(tri));
-  }
-
-  mesh_bvh = std::make_shared<bvh_node>(tri_ptrs);
+  // Store triangles in leaf order so each leaf is a contiguous range.
+  std::vector<triangle> ordered;
+  ordered.reserve(triangleList.size());
+  for (uint32_t idx : mesh_bvh.order())
+    ordered.push_back(triangleList[idx]);
+  triangleList.swap(ordered);
+  box_computed = false;
 
   if (!g_quiet.load() && !g_suppress_mesh_messages.load()) {
-    cerr << "Built mesh BVH: " << mesh_bvh->getNodeCount() << " nodes, "
-         << mesh_bvh->getLeafCount() << " leaves, max depth "
-         << mesh_bvh->getMaxDepth() << endl;
+    cerr << "Built mesh BVH: " << mesh_bvh.node_count() << " nodes, "
+         << mesh_bvh.leaf_count() << " leaves, max depth "
+         << mesh_bvh.max_depth() << endl;
   }
 }
 
 bool mesh::hit(const ray &r, double t_min, double t_max,
                hit_record &rec) const {
-  if (mesh_bvh) {
-    return mesh_bvh->hit(r, t_min, t_max, rec);
+  if (!mesh_bvh.empty()) {
+    return mesh_bvh.traverse(
+        r, t_min, t_max, false,
+        [&](uint32_t first, uint32_t count, double &t_far) {
+          bool any = false;
+          for (uint32_t i = first; i < first + count; ++i) {
+            if (triangleList[i].hit(r, t_min, t_far, rec)) {
+              any = true;
+              t_far = rec.t;
+            }
+          }
+          return any;
+        });
   }
 
   hit_record temp_rec;
@@ -238,6 +253,30 @@ bool mesh::hit(const ray &r, double t_min, double t_max,
     }
   }
   return hit_anything;
+}
+
+bool mesh::hit_any(const ray &r, double t_min, double t_max) const {
+  if (!mesh_bvh.empty()) {
+    return mesh_bvh.traverse(
+        r, t_min, t_max, true,
+        [&](uint32_t first, uint32_t count, double &t_far) {
+          for (uint32_t i = first; i < first + count; ++i) {
+            if (triangleList[i].hit_any(r, t_min, t_far))
+              return true;
+          }
+          return false;
+        });
+  }
+  for (const auto &tri : triangleList) {
+    if (tri.hit_any(r, t_min, t_max))
+      return true;
+  }
+  return false;
+}
+
+void mesh::collect_lights(std::vector<std::shared_ptr<light>> &out) {
+  for (auto &tri : triangleList)
+    tri.collect_lights(out);
 }
 
 bool mesh::bounding_box(aabb &output_box) const {

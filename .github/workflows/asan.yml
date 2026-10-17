@@ -2,7 +2,7 @@ name: ASAN
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, ray-tracing-enhancement ]
   pull_request:
     branches: [ main ]
 
@@ -25,21 +25,28 @@ jobs:
           path: |
             build
             ~/.cache/ccache
-          key: ${{ runner.os }}-asan-${{ hashFiles('**/CMakeLists.txt') }}
+          key: ${{ runner.os }}-asan-v2-${{ hashFiles('**/CMakeLists.txt') }}
           restore-keys: |
-            ${{ runner.os }}-asan-
+            ${{ runner.os }}-asan-v2-
 
-      - name: Configure (ASAN)
+      - name: Configure (ASAN + UBSAN)
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
+            -DRAYTRACER_BUILD_GUI=OFF \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 
       - name: Build
         run: cmake --build build -- -j2
 
-      - name: Run (ASAN smoke)
+      - name: Correctness tests under sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1
-        run: ./build/Raytracer --help
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Run (ASAN smoke render)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: ./build/Raytracer --scene cornell_water_scene.xml --width 32 --samples 2 --no-denoise --quiet --out build/smoke.png

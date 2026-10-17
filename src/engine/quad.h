@@ -3,6 +3,7 @@
 
 #include "aabb.h"
 #include "hittable.h"
+#include "light.h"
 #include "material.h"
 #include <cmath>
 
@@ -56,7 +57,7 @@ public:
     auto denom = dot(normal, r.direction());
 
     // No hit if ray is parallel to the plane
-    if (fabs(denom) < 1e-8)
+    if (denom == 0.0)
       return false;
 
     // Return false if hit point is outside the ray interval
@@ -75,11 +76,21 @@ public:
 
     // Ray hits the quad
     rec.t = t;
-    rec.p = intersection;
-    rec.mat_ptr = mat;
+    rec.p = Q + alpha * u + beta * v; // exactly on the plane
+    rec.mat_ptr = mat.get();
+    rec.area_light = emitter;
     rec.set_face_normal(r, normal);
 
     return true;
+  }
+
+  virtual void
+  collect_lights(std::vector<std::shared_ptr<light>> &out) override {
+    if (!mat || !mat->is_emissive() || !(cross(u, v).length() > 0.0))
+      return;
+    auto l = area_light::make_parallelogram(Q, u, v, mat.get());
+    emitter = l.get();
+    out.push_back(std::move(l));
   }
 
   /**
@@ -104,6 +115,7 @@ public:
   vec3 normal; // Unit normal
   double D;    // Distance from origin to plane
   vec3 w;      // Precomputed value for intersection
+  const light *emitter = nullptr;
 };
 
 #endif

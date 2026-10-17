@@ -1,8 +1,10 @@
 
 #include "aabb.h"
+#include "light.h"
+#include "material.h"
 #include "sphere.h"
+#include <algorithm>
 #include <cmath>
-
 
 // Get spherical UV coordinates from a point on unit sphere
 // u: [0,1] around Y axis (longitude)
@@ -13,7 +15,7 @@ static void get_sphere_uv(const point3 &p, double &u, double &v) {
   // theta = angle down from +Y axis (0 to π)
   // phi = angle around Y axis (0 to 2π)
 
-  double theta = acos(-p.y());
+  double theta = acos(std::clamp(-p.y(), -1.0, 1.0));
   double phi = atan2(-p.z(), p.x()) + M_PI;
 
   u = phi / (2 * M_PI);
@@ -43,17 +45,30 @@ bool sphere::hit(const ray &r, double t_min, double t_max,
   rec.t = root;
   rec.p = r.at(rec.t);
   vec3 outward_normal = (rec.p - center) / radius;
-  rec.set_face_normal(r, outward_normal);
-  rec.mat_ptr = mat_ptr;
+  // Re-project onto the surface; o + t*d drifts off it for distant origins.
+  rec.p = center + std::fabs(radius) * unit_vector(rec.p - center);
+  rec.set_face_normal(r, unit_vector(outward_normal));
+  rec.mat_ptr = mat_ptr.get();
+  rec.area_light = emitter;
 
   // Compute UV coordinates for texture mapping
-  get_sphere_uv(outward_normal, rec.u, rec.v);
+  get_sphere_uv(unit_vector(outward_normal), rec.u, rec.v);
 
   return true;
 }
 
 bool sphere::bounding_box(aabb &output_box) const {
-  output_box = aabb(center - vec3(radius, radius, radius),
-                    center + vec3(radius, radius, radius));
+  const double r = std::fabs(radius);
+  output_box = aabb(center - vec3(r, r, r), center + vec3(r, r, r));
   return true;
+}
+
+void sphere::collect_lights(std::vector<std::shared_ptr<light>> &out) {
+  // Negative radii (inside-out spheres) are not light-sampled; they still
+  // emit when hit.
+  if (!mat_ptr || !mat_ptr->is_emissive() || !(radius > 0.0))
+    return;
+  auto l = area_light::make_sphere(center, radius, mat_ptr.get());
+  emitter = l.get();
+  out.push_back(std::move(l));
 }

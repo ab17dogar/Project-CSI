@@ -896,7 +896,8 @@ void LoadMaterials(XMLElement *materialsElem) {
     return;
   }
 
-  cerr << "LoadMaterials: parsing materials from XML..." << endl;
+  if (!g_quiet.load())
+    cerr << "LoadMaterials: parsing materials from XML..." << endl;
 
   // Clear previous materials
   g_materials.clear();
@@ -948,8 +949,18 @@ void LoadMaterials(XMLElement *materialsElem) {
       if (iorElem && iorElem->Attribute("value")) {
         ior = atof(iorElem->Attribute("value"));
       }
-      // Create glass with slight blue-white tint for realistic appearance
-      color glassTint(0.95, 0.97, 1.0); // Slight blue-white tint
+      // Clear (lossless) by default. The old hard-coded 0.95-0.97 tint
+      // silently absorbed 3-5% of the light at every interface crossing.
+      color glassTint(1.0, 1.0, 1.0);
+      XMLElement *tintElem = item->FirstChildElement("Tint");
+      if (tintElem) {
+        if (tintElem->Attribute("r"))
+          glassTint.e[0] = atof(tintElem->Attribute("r"));
+        if (tintElem->Attribute("g"))
+          glassTint.e[1] = atof(tintElem->Attribute("g"));
+        if (tintElem->Attribute("b"))
+          glassTint.e[2] = atof(tintElem->Attribute("b"));
+      }
       mat = make_shared<dielectric>(ior, glassTint);
     } else if (type == "PBR") {
       // PBR material with metallic/roughness workflow
@@ -1008,11 +1019,13 @@ shared_ptr<material> LoadMaterial(string name) {
   // First check dynamically loaded materials from XML
   auto it = g_materials.find(name);
   if (it != g_materials.end()) {
-    cerr << "LoadMaterial: found dynamic material '" << name << "'" << endl;
+    if (!g_quiet.load())
+      cerr << "LoadMaterial: found dynamic material '" << name << "'" << endl;
     return it->second;
   }
 
-  cerr << "LoadMaterial: using fallback for '" << name
+  if (!g_quiet.load())
+    cerr << "LoadMaterial: using fallback for '" << name
        << "' (not in XML materials)" << endl;
 
   // Fallback to hardcoded presets for backward compatibility

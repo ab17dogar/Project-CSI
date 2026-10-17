@@ -4,6 +4,7 @@
 #include "../util/vec3.h"
 #include "hittable.h"
 #include "material.h"
+#include "sampling.h"
 #include "texture.h"
 
 /**
@@ -19,22 +20,33 @@ public:
   // Convenience constructor for solid color (wraps in solid_color texture)
   lambertian_textured(const color &a) : albedo(make_shared<solid_color>(a)) {}
 
-  virtual bool scatter(const ray &r_in, const hit_record &rec,
-                       color &attenuation, ray &scattered) const override {
-    (void)r_in; // Unused
+  color eval(const hit_record &rec, const vec3 &wo,
+             const vec3 &wi) const override {
+    (void)wo;
+    if (cos_theta(rec, wi) <= 0.0)
+      return color(0, 0, 0);
+    return albedo->value(rec.u, rec.v, rec.p) * INV_PI;
+  }
 
-    // Random scatter direction in hemisphere
-    vec3 scatter_direction = rec.normal + random_unit_vector();
+  double pdf(const hit_record &rec, const vec3 &wo,
+             const vec3 &wi) const override {
+    (void)wo;
+    return sampling::cosine_hemisphere_pdf(cos_theta(rec, wi));
+  }
 
-    // Catch degenerate scatter direction
-    if (scatter_direction.near_zero())
-      scatter_direction = rec.normal;
-
-    scattered = ray(rec.p, scatter_direction);
-
-    // Sample texture at UV coordinates
-    attenuation = albedo->value(rec.u, rec.v, rec.p);
-
+  bool sample(const hit_record &rec, const vec3 &wo, double uc, double u1,
+              double u2, bsdf_sample &out) const override {
+    (void)wo;
+    (void)uc;
+    const vec3 local = sampling::square_to_cosine_hemisphere(u1, u2);
+    if (local.z() <= 0.0)
+      return false;
+    out.wi = unit_vector(onb(rec.normal).local(local));
+    out.pdf = local.z() * INV_PI;
+    out.weight = albedo->value(rec.u, rec.v, rec.p);
+    out.is_delta = false;
+    out.is_transmission = false;
+    out.eta = 1.0;
     return true;
   }
 

@@ -7,10 +7,20 @@
 #include <cmath>
 
 /**
- * @brief Dielectric (glass/transparent) material
+ * @brief Smooth dielectric (glass/water) interface.
  *
- * Implements refraction using Snell's law and reflection
- * using Schlick's approximation for realistic glass rendering.
+ * Specular reflection and refraction chosen stochastically in proportion to
+ * the exact unpolarized Fresnel reflectance (not Schlick's approximation).
+ * Both lobes are Dirac deltas, so the material is invisible to light
+ * sampling and has_smooth_lobes() is false.
+ *
+ * Refracted radiance is scaled by 1/eta^2 (radiance compression across the
+ * interface, Veach 1997 sec. 5.2). For a closed object the factors cancel
+ * between entry and exit; for an open surface such as the Cornell box water
+ * they do not.
+ *
+ * `tint` scales transmission only. It is a per-crossing filter, not
+ * Beer-Lambert absorption.
  *
  * Common refraction indices:
  * - Air: 1.0
@@ -28,20 +38,20 @@ public:
   dielectric(double index_of_refraction, const color &glass_tint)
       : ir(index_of_refraction), tint(glass_tint) {}
 
-  virtual bool scatter(const ray &r_in, const hit_record &rec,
-                       color &attenuation, ray &scattered) const override;
+  bool has_smooth_lobes() const override { return false; }
+
+  color eval(const hit_record &, const vec3 &, const vec3 &) const override {
+    return color(0, 0, 0);
+  }
+  double pdf(const hit_record &, const vec3 &, const vec3 &) const override {
+    return 0.0;
+  }
+  bool sample(const hit_record &rec, const vec3 &wo, double uc, double u1,
+              double u2, bsdf_sample &out) const override;
 
 public:
   double ir;  // Index of Refraction
-  color tint; // Glass tint color (1,1,1 for clear glass)
-
-private:
-  // Schlick's approximation for reflectance
-  static double reflectance(double cosine, double ref_idx) {
-    double r0 = (1 - ref_idx) / (1 + ref_idx);
-    r0 = r0 * r0;
-    return r0 + (1 - r0) * pow((1 - cosine), 5);
-  }
+  color tint; // Transmission filter (1,1,1 for clear glass)
 };
 
 #endif

@@ -40,10 +40,17 @@ set(RAYTRACER_CORE_HEADERS
     src/engine/isotropic.h
     src/engine/constant_medium.h
     src/engine/onb.h
-    src/engine/pdf.h
-    src/engine/scatter_record.h
     src/engine/ggx_material.h
-    src/engine/mis.h
+    src/engine/pbr_material.h
+    src/engine/dielectric.h
+    src/engine/sss_material.h
+    src/engine/microfacet.h
+    src/engine/sampling.h
+    src/engine/bvh.h
+    src/engine/light.h
+    src/engine/light_sampler.h
+    src/engine/integrator.h
+    src/engine/hdri_environment.h
     src/util/vec3.h
     src/util/ray.h
     src/defs.h
@@ -56,6 +63,11 @@ set(RAYTRACER_CORE_SOURCES
     src/engine/camera.cpp
     src/engine/config.cpp
     src/engine/shpere.cpp
+    src/engine/bvh.cpp
+    src/engine/light.cpp
+    src/engine/integrator.cpp
+    src/engine/pbr_material.cpp
+    src/engine/hittable_list.cpp
     src/engine/triangle.cpp
     src/engine/lambertian.cpp
     src/engine/metal.cpp
@@ -74,7 +86,6 @@ set(RAYTRACER_CORE_SOURCES
     src/util/logging.cpp
     src/3rdParty/stb_image_write.cpp
     src/3rdParty/stb_image_impl.cpp
-    src/engine/pdf.cpp
 )
 
 set(RAYTRACER_CLI_SOURCES
@@ -130,11 +141,14 @@ if(USE_OIDN)
     target_compile_definitions(raytracer_core PUBLIC USE_OIDN)
 endif()
 
+find_package(Threads REQUIRED)
+
 # Link libraries needed by the rendering core.
 target_link_libraries(raytracer_core
     PUBLIC
         glm::glm
         PNG::PNG
+        Threads::Threads
 )
 
 # Link OIDN if available
@@ -151,6 +165,26 @@ target_link_libraries(${PROJECT_NAME}
         raytracer_core
 )
 
+
+# ==========================================
+# Correctness test suite (ctest)
+# ==========================================
+option(RAYTRACER_BUILD_TESTS "Build the correctness test suite" ON)
+if(RAYTRACER_BUILD_TESTS)
+    enable_testing()
+    add_executable(raytracer_tests
+        tests/test_main.cpp
+        tests/test_sampling.cpp
+        tests/test_bsdf.cpp
+        tests/test_lights.cpp
+        tests/test_integrator.cpp
+        tests/test_bvh.cpp
+    )
+    target_include_directories(raytracer_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests)
+    target_link_libraries(raytracer_tests PRIVATE raytracer_core)
+    add_test(NAME correctness COMMAND raytracer_tests)
+    set_tests_properties(correctness PROPERTIES TIMEOUT 1800)
+endif()
 
 # Install rules: binary + assets (source assets directory)
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)

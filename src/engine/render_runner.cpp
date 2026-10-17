@@ -11,12 +11,8 @@
 
 #include "engine/camera.h"
 #include "engine/config.h"
-#include "engine/hdri_environment.h"
-#include "engine/material.h"
-#include "engine/mis.h"
+#include "engine/integrator.h"
 #include "engine/oidn_denoiser.h"
-#include "engine/point_light.h"
-#include "engine/sun.h"
 #include "engine/world.h"
 #include "util/logging.h"
 #include "util/ray.h"
@@ -31,175 +27,56 @@ struct Tile {
   int h;
 };
 
-color TraceRayInternal(const ray &r, int depth, world &sceneWorld) {
-  hit_record rec;
+// Camera-space coordinate of a jittered sample inside pixel (x, y). Pixel i
+// spans [i, i+1) of the image width (the old /(width - 1) stretched the
+// image by one pixel).
+inline ray CameraRay(const camera &cam, int x, int y, int width, int height) {
+  const double u = (x + random_double()) / static_cast<double>(width);
+  const double v = (y + random_double()) / static_cast<double>(height);
+  return cam.get_ray(u, v);
+}
 
-  if (depth <= 0) {
-    return color(0, 0, 0);
-  }
+// A path that produced NaN/Inf is a bug. It is dropped (it would otherwise
+// poison the pixel) but counted, so the problem cannot hide.
+std::atomic<long long> g_invalid_samples{0};
 
-  if (sceneWorld.hit(r, 0.001, INF, rec)) {
-    ray scattered;
-    color attenuation;
-    color result;
-
-    // Get emission from material (non-zero for emissive materials)
-    color emitted = rec.mat_ptr->emitted(rec.u, rec.v, rec.p);
-
-    if (rec.mat_ptr->scatter(r, rec, attenuation, scattered)) {
-      // Russian Roulette path termination after first few bounces
-      // Probabilistically terminate paths with low contribution while
-      // maintaining unbiased results
-      int max_depth = sceneWorld.GetMaxDepth();
-      if (depth < max_depth - 3) { // Only apply after first 3 bounces
-        double luminance = 0.2126 * attenuation.x() + 0.7152 * attenuation.y() +
-                           0.0722 * attenuation.z();
-        double continue_prob = std::min(0.95, std::max(0.1, luminance));
-        if (random_double() > continue_prob) {
-          return emitted; // Terminate path, return emission only
-        }
-        // Adjust for probability of not terminating
-        attenuation = attenuation / continue_prob;
-      }
-
-      result = attenuation * TraceRayInternal(scattered, depth - 1, sceneWorld);
-
-      // Check if the scattered ray is refracted (going through glass)
-      // Refracted rays go opposite to surface normal
-      bool isRefracted = dot(scattered.direction(), rec.normal) < 0;
-
-      if (!isRefracted) {
-        // Apply sun lighting with shadow testing
-        ray shadowRay;
-        shadowRay.dir = sceneWorld.psun->direction;
-        // Offset origin along normal to prevent shadow acne
-        shadowRay.orig = rec.p + rec.normal * 0.001;
-        hit_record shadowRec;
-        if (sceneWorld.hit(shadowRay, 0.001, INF, shadowRec)) {
-          result = result * 0.3; // Softer shadow
-        } else {
-          result = result * sceneWorld.psun->sunColor;
-        }
-
-        // Direct sampling of point lights (Next Event Estimation with MIS)
-        for (const auto &light : sceneWorld.pointLights) {
-          vec3 toLight = light->position - rec.p;
-          double lightDist = toLight.length();
-          vec3 lightDir = toLight / lightDist;
-
-          // Check if light is visible (shadow ray)
-          ray lightShadowRay;
-          // Offset origin along normal to prevent shadow acne
-          lightShadowRay.orig = rec.p + rec.normal * 0.001;
-          lightShadowRay.dir = lightDir;
-          hit_record lightShadowRec;
-
-          if (!sceneWorld.hit(lightShadowRay, 0.001, lightDist - 0.001,
-                              lightShadowRec)) {
-            // Light is visible - calculate contribution with MIS
-            double cosTheta = std::max(0.0, dot(rec.normal, lightDir));
-
-            // PDF for light sampling (point light = delta function
-            // approximation) For proper MIS, we use 1/distance^2 as the
-            // effective PDF
-            double pdf_light = 1.0;
-
-            // PDF for BRDF sampling this direction (cosine-weighted for
-            // diffuse)
-            double pdf_brdf = mis::pdf_cosine_hemisphere(lightDir, rec.normal);
-
-            // MIS weight using power heuristic
-            double mis_weight = mis::power_heuristic(pdf_light, pdf_brdf);
-
-            // Light attenuation (inverse square law)
-            double light_attenuation =
-                light->intensity / (lightDist * lightDist);
-
-            // Apply MIS-weighted contribution
-            result = result + light->lightColor * cosTheta * light_attenuation *
-                                  mis_weight;
-          }
-        }
-      }
-      // Glass (refractive) materials - light passes through, no shadow
-      // darkening
-    } else {
-      // Scatter returned false - use emission only
-      result = color(0, 0, 0);
-    }
-
-    // Add emission to result
-    return emitted + result;
-  }
-
-  // Sky background gradient or HDRI environment
-  vec3 unit_direction = unit_vector(r.direction());
-
-  // Use HDRI environment if available
-  if (sceneWorld.hdri && sceneWorld.hdri->is_valid()) {
-    return sceneWorld.hdri->sample(unit_direction);
-  }
-
-  // Check if sun is disabled (zero color means sun is off)
-  color sunCol = sceneWorld.psun->sunColor;
-  double sunBrightness = sunCol.x() + sunCol.y() + sunCol.z();
-
-  if (sunBrightness < 0.001) {
-    // Sun is disabled - return black sky
-    return color(0.0, 0.0, 0.0);
-  }
-
-  // Separate sky and ground based on ray direction
-  double y = unit_direction.y();
-
-  color result;
-  if (y > 0.0) {
-    // SKY: Above horizon - blend from horizon to zenith
-    double t = y; // 0 at horizon, 1 at zenith
-    result = (1.0 - t) * sceneWorld.skyColorBottom + t * sceneWorld.skyColorTop;
-  } else {
-    // GROUND: Below horizon - use ground color with slight fade
-    double t =
-        std::min(1.0, -y * 2.0); // 0 at horizon, 1 when looking straight down
-    result = (1.0 - t) * sceneWorld.skyColorBottom + t * sceneWorld.groundColor;
-  }
-
-  // Scale by sun intensity (normalized)
-  double normalizedBrightness = std::min(1.0, sunBrightness / 3.0);
-  return result * normalizedBrightness;
+inline color Sanitize(const color &c) {
+  if (is_finite(c))
+    return c;
+  g_invalid_samples.fetch_add(1, std::memory_order_relaxed);
+  return color(0, 0, 0);
 }
 
 } // namespace
 
 color TraceRay(const ray &r, int depth, world &sceneWorld) {
-  return TraceRayInternal(r, depth, sceneWorld);
+  sceneWorld.prepare();
+  path_tracer_settings settings = settings_from_config(*sceneWorld.pconfig);
+  settings.max_depth = depth;
+  return Sanitize(trace_path(r, sceneWorld, settings));
 }
 
 color RenderPixel(world &sceneWorld, int x, int y, int sampleIndex) {
+  (void)sampleIndex; // interactive mode keeps one running stream per thread
+  sceneWorld.prepare();
   const int width = sceneWorld.GetImageWidth();
   const int height = sceneWorld.GetImageHeight();
-  std::shared_ptr<camera> cam = sceneWorld.pcamera;
-
-  // Use sample index for deterministic jittering
-  thread_local std::mt19937 gen(std::random_device{}());
-  std::uniform_real_distribution<double> dist(0.0, 1.0);
-
-  const double u = (x + dist(gen)) / static_cast<double>(width - 1);
-  const double v = (y + dist(gen)) / static_cast<double>(height - 1);
-  const ray r = cam->get_ray(u, v);
-
-  return TraceRayInternal(r, sceneWorld.GetMaxDepth(), sceneWorld);
+  const ray r = CameraRay(*sceneWorld.pcamera, x, y, width, height);
+  return Sanitize(
+      trace_path(r, sceneWorld, settings_from_config(*sceneWorld.pconfig)));
 }
+
+long long InvalidSampleCount() { return g_invalid_samples.load(); }
 
 void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
                          unsigned int threads, int tile_size, bool tile_debug,
                          const TileCallback &onTileFinished,
                          std::atomic<bool> *cancelFlag) {
-  // Build BVH if BVH acceleration is selected and not already built
-  if (sceneWorld.GetAccelerationMethod() == AccelerationMethod::BVH &&
-      !sceneWorld.hasBVH()) {
-    sceneWorld.buildBVH();
-  }
+  // Builds the BVH (if selected) and the light list, once.
+  sceneWorld.prepare();
+  const path_tracer_settings settings =
+      settings_from_config(*sceneWorld.pconfig);
+  const uint64_t seed = sceneWorld.pconfig->seed;
 
   const int width = sceneWorld.GetImageWidth();
   const int height = sceneWorld.GetImageHeight();
@@ -243,13 +120,7 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
   std::atomic<bool> cancelled{false};
 
   auto worker = [&](unsigned int thread_index) {
-    std::mt19937 gen(static_cast<unsigned int>(
-        std::hash<std::thread::id>{}(std::this_thread::get_id()) ^
-        static_cast<unsigned int>(std::chrono::high_resolution_clock::now()
-                                      .time_since_epoch()
-                                      .count())));
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-
+    (void)thread_index;
     while (true) {
       if (cancelFlag && cancelFlag->load()) {
         cancelled = true;
@@ -271,12 +142,15 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
         }
         for (int xx = tile.x0; xx < tile.x0 + tile.w; ++xx) {
           color pixel_color(0, 0, 0);
+          const uint64_t pixel_index =
+              static_cast<uint64_t>(yy) * static_cast<uint64_t>(width) +
+              static_cast<uint64_t>(xx);
           for (int s = 0; s < samples; ++s) {
-            const double u = (xx + dist(gen)) / static_cast<double>(width - 1);
-            const double v = (yy + dist(gen)) / static_cast<double>(height - 1);
-            const ray r = camera->get_ray(u, v);
-            pixel_color +=
-                TraceRayInternal(r, sceneWorld.GetMaxDepth(), sceneWorld);
+            // Each (pixel, sample) gets its own stream: the image does not
+            // depend on thread count or tile order.
+            seed_thread_rng(pixel_index, static_cast<uint64_t>(s), seed);
+            const ray r = CameraRay(*camera, xx, yy, width, height);
+            pixel_color += Sanitize(trace_path(r, sceneWorld, settings));
           }
           bitmap[(height - 1 - yy) * width + xx] = pixel_color;
         }
@@ -356,6 +230,10 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
     } else {
       std::cerr << "\rTiles remaining: 0\n";
       std::cerr << "Render time: " << total_ms << " ms\n";
+      const long long bad = g_invalid_samples.load();
+      if (bad > 0)
+        std::cerr << "WARNING: " << bad
+                  << " samples returned NaN/Inf and were discarded\n";
     }
   }
 

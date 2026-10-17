@@ -9,84 +9,72 @@
 #include <memory>
 
 /**
- * @brief Physically-Based Rendering (PBR) material
+ * @brief Physically-Based Rendering (PBR) material, metallic-roughness model.
  *
- * Implements the Cook-Torrance BRDF with GGX distribution,
- * providing realistic metallic and dielectric surfaces.
+ * Same parameterization as glTF 2.0 / Disney "principled": base color,
+ * metallic, roughness (alpha = roughness^2).
  *
- * Key parameters:
- * - albedo: Base color (texture or solid)
- * - metallic: 0 = dielectric, 1 = metal
- * - roughness: 0 = mirror, 1 = fully diffuse
+ *   f = (1 - m) * f_dielectric + m * f_metal
+ *   f_metal      = GGX(F0 = base)
+ *   f_dielectric = GGX(F0 = 0.04) + diffuse
+ *
+ * The specular lobes are Cook-Torrance GGX with height-correlated Smith
+ * masking and Schlick Fresnel, sampled with the visible-normal distribution.
+ *
+ * The diffuse lobe deliberately differs from the glTF reference
+ * `fresnel_mix`. That one weights diffuse by (1 - F(v.h)), which is neither
+ * reciprocal nor energy conserving: a white smooth dielectric reflects up to
+ * ~2x the incident energy at grazing angles. Here diffuse uses the coupling
+ * of Kelemen & Szirmay-Kalos (2001):
+ *
+ *   f_diffuse = base/pi * (1 - E(wo)) (1 - E(wi)) / (1 - E_avg)
+ *
+ * where E is the directional albedo of the dielectric specular lobe
+ * (tabulated at startup). It is symmetric in wo and wi, and the total albedo
+ * is E(wo) + base * (1 - E(wo)) <= 1.
+ *
+ * Roughness below 0.01 is treated as perfectly smooth: the specular lobe
+ * becomes a Dirac delta (mirror), handled by BSDF sampling only.
  */
 class pbr_material : public material {
 public:
   pbr_material(shared_ptr<texture> albedo_tex, float metallic = 0.0f,
-               float roughness = 0.5f)
-      : albedo(albedo_tex), metallic(metallic),
-        roughness(std::max(0.04f, roughness)) {}
+               float roughness = 0.5f);
+  pbr_material(const color &c, float metallic = 0.0f, float roughness = 0.5f);
 
-  pbr_material(const color &c, float metallic = 0.0f, float roughness = 0.5f)
-      : albedo(make_shared<solid_color>(c)), metallic(metallic),
-        roughness(std::max(0.04f, roughness)) {}
+  color eval(const hit_record &rec, const vec3 &wo,
+             const vec3 &wi) const override;
+  double pdf(const hit_record &rec, const vec3 &wo,
+             const vec3 &wi) const override;
+  bool sample(const hit_record &rec, const vec3 &wo, double uc, double u1,
+              double u2, bsdf_sample &out) const override;
+  bool has_smooth_lobes() const override { return !smooth || metallic < 1.0; }
 
-  virtual bool scatter(const ray &r_in, const hit_record &rec,
-                       color &attenuation, ray &scattered) const override {
-    // Sample albedo texture
-    color base_color = albedo->value(rec.u, rec.v, rec.p);
+  bool is_smooth() const { return smooth; }
+  double alpha() const { return alpha_; }
 
-    // Calculate reflection vs diffuse based on roughness and metallic
-    vec3 unit_direction = unit_vector(r_in.direction());
-
-    // Perfect reflection direction
-    vec3 reflected = reflect(unit_direction, rec.normal);
-
-    // Add roughness-based perturbation
-    vec3 scatter_direction;
-
-    if (metallic > 0.5f) {
-      // Metallic surfaces: mostly specular with roughness blur
-      scatter_direction = reflected + roughness * random_in_unit_sphere();
-      if (scatter_direction.near_zero())
-        scatter_direction = rec.normal;
-
-      // Metallic materials tint reflections with albedo
-      attenuation = base_color;
-    } else {
-      // Dielectric surfaces: mix of diffuse and specular
-      // Fresnel-based blend
-      double cos_theta = fmin(dot(-unit_direction, rec.normal), 1.0);
-      double fresnel = schlick_fresnel(cos_theta, 0.04);
-
-      if (random_double() < fresnel * (1.0 - roughness)) {
-        // Specular reflection
-        scatter_direction = reflected + roughness * random_in_unit_sphere();
-        if (scatter_direction.near_zero())
-          scatter_direction = rec.normal;
-        attenuation = color(1, 1, 1); // Specular is white for dielectrics
-      } else {
-        // Diffuse scatter
-        scatter_direction = rec.normal + random_unit_vector();
-        if (scatter_direction.near_zero())
-          scatter_direction = rec.normal;
-        attenuation = base_color;
-      }
-    }
-
-    scattered = ray(rec.p, scatter_direction);
-    return (dot(scattered.direction(), rec.normal) > 0);
-  }
+  // Directional albedo of the F0 = 0.04 GGX lobe (smooth: Schlick Fresnel).
+  static double dielectric_specular_albedo(double cos_theta, double roughness);
+  static double dielectric_specular_average(double roughness);
 
 public:
   shared_ptr<texture> albedo;
-  float metallic;
-  float roughness;
+  double metallic;
+  double roughness;
 
 private:
-  // Schlick's approximation for Fresnel
-  static double schlick_fresnel(double cosine, double f0) {
-    return f0 + (1.0 - f0) * pow((1.0 - cosine), 5);
-  }
+  struct lobe_setup {
+    color base;
+    color f0;
+    double spec_weight; // probability of sampling the specular lobe
+  };
+  lobe_setup setup(const hit_record &rec, double cos_o) const;
+  color eval_local(const lobe_setup &s, const vec3 &wo, const vec3 &wi) const;
+  double pdf_local(const lobe_setup &s, const vec3 &wo, const vec3 &wi) const;
+  color diffuse_local(const lobe_setup &s, double cos_o, double cos_i) const;
+
+  double alpha_;
+  bool smooth;
 };
 
 #endif

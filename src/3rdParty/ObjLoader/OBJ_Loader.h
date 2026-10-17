@@ -18,7 +18,7 @@
 #include <math.h>
 
 // Print progress to console while loading (large models)
-#define OBJL_CONSOLE_OUTPUT
+// #define OBJL_CONSOLE_OUTPUT  // per-1000-vertex progress spam; ignores --quiet
 
 // Namespace: OBJL
 //

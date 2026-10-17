@@ -9,11 +9,16 @@
  *
  * Creates a local coordinate system from a single vector (typically a surface
  * normal). Used for importance sampling in materials - converts samples from
- * local space (where the normal is "up") to world space.
+ * local space (where the normal is "up") to world space and back.
+ *
+ * The tangent frame uses the branchless construction of Duff et al.,
+ * "Building an Orthonormal Basis, Revisited" (JCGT 2017), which stays
+ * accurate for normals near -z where Frisvad's original method breaks down.
  */
 class onb {
 public:
   onb() {}
+  explicit onb(const vec3 &n) { build_from_w(n); }
 
   /**
    * @brief Build ONB from a single "up" vector (typically surface normal)
@@ -21,10 +26,12 @@ public:
    */
   void build_from_w(const vec3 &n) {
     axis[2] = unit_vector(n);
-    // Pick a vector not parallel to n
-    vec3 a = (fabs(w().x()) > 0.9) ? vec3(0, 1, 0) : vec3(1, 0, 0);
-    axis[1] = unit_vector(cross(w(), a));
-    axis[0] = cross(w(), v());
+    const vec3 &w_ = axis[2];
+    double sign = std::copysign(1.0, w_.z());
+    double a = -1.0 / (sign + w_.z());
+    double b = w_.x() * w_.y() * a;
+    axis[0] = vec3(1.0 + sign * w_.x() * w_.x() * a, sign * b, -sign * w_.x());
+    axis[1] = vec3(b, sign + w_.y() * w_.y() * a, -w_.y());
   }
 
   // Access individual axes
@@ -38,11 +45,14 @@ public:
    * @return Vector in world coordinates
    */
   vec3 local(double a, double b, double c) const {
-    return a * u() + b * v() + c * w();
+    return a * axis[0] + b * axis[1] + c * axis[2];
   }
 
-  vec3 local(const vec3 &a) const {
-    return a.x() * u() + a.y() * v() + a.z() * w();
+  vec3 local(const vec3 &a) const { return local(a.x(), a.y(), a.z()); }
+
+  // World-space vector expressed in this basis (inverse of local()).
+  vec3 to_local(const vec3 &a) const {
+    return vec3(dot(a, axis[0]), dot(a, axis[1]), dot(a, axis[2]));
   }
 
 public:

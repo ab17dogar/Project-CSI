@@ -1,36 +1,36 @@
 #include "dielectric.h"
 #include "../util/vec3.h"
 #include "hittable.h"
-#include <cstdlib>
+#include "microfacet.h"
 
-bool dielectric::scatter(const ray &r_in, const hit_record &rec,
-                         color &attenuation, ray &scattered) const {
-  // Glass tint (white = clear, can be tinted for colored glass)
-  attenuation = tint;
+bool dielectric::sample(const hit_record &rec, const vec3 &wo, double uc,
+                        double u1, double u2, bsdf_sample &out) const {
+  (void)u1;
+  (void)u2;
+  const vec3 &n = rec.normal; // faces wo
+  // Relative IOR for light crossing from wo's side to the other side.
+  const double eta = rec.front_face ? ir : 1.0 / ir;
+  const double cos_o = dot(wo, n);
+  const double F = microfacet::fresnel_dielectric(cos_o, eta);
 
-  // Determine if we're entering or exiting the material
-  double refraction_ratio = rec.front_face ? (1.0 / ir) : ir;
+  out.pdf = 0.0;
+  out.is_delta = true;
 
-  vec3 unit_direction = unit_vector(r_in.direction());
-
-  // Calculate cosine of incident angle
-  double cos_theta = fmin(dot(-unit_direction, rec.normal), 1.0);
-  double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-
-  // Check for total internal reflection
-  bool cannot_refract = refraction_ratio * sin_theta > 1.0;
-
-  vec3 direction;
-
-  if (cannot_refract ||
-      reflectance(cos_theta, refraction_ratio) > random_double()) {
-    // Must reflect (total internal reflection or Schlick)
-    direction = reflect(unit_direction, rec.normal);
-  } else {
-    // Can refract
-    direction = refract(unit_direction, rec.normal, refraction_ratio);
+  if (uc < F) {
+    out.wi = unit_vector(2.0 * cos_o * n - wo);
+    out.weight = color(1, 1, 1); // F / P(reflect) with P(reflect) = F
+    out.is_transmission = false;
+    out.eta = 1.0;
+    return true;
   }
 
-  scattered = ray(rec.p, direction);
+  const double sin2_t = std::max(0.0, 1.0 - cos_o * cos_o) / (eta * eta);
+  if (sin2_t >= 1.0)
+    return false; // unreachable: F = 1 under total internal reflection
+  const double cos_t = std::sqrt(1.0 - sin2_t);
+  out.wi = unit_vector(-wo / eta + (cos_o / eta - cos_t) * n);
+  out.weight = tint / (eta * eta); // (1 - F) / P(refract) * 1/eta^2
+  out.is_transmission = true;
+  out.eta = eta;
   return true;
 }

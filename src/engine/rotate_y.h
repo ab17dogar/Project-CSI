@@ -80,8 +80,11 @@ public:
     normal[0] = cos_theta * rec.normal[0] + sin_theta * rec.normal[2];
     normal[2] = -sin_theta * rec.normal[0] + cos_theta * rec.normal[2];
 
+    // Rotation preserves dot(direction, normal), so the child's front_face
+    // still holds for the world-space ray; only the normal is rotated back.
     rec.p = p;
-    rec.set_face_normal(rotated_r, normal);
+    rec.normal = normal;
+    rec.area_light = nullptr; // emitters inside instances are not sampled
 
     return true;
   }

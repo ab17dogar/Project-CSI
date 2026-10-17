@@ -9,8 +9,7 @@
 #include <vector>
 
 
-// Forward declaration to avoid circular include
-class bvh_node;
+#include "bvh.h"
 
 class mesh : public hittable {
 public:
@@ -18,7 +17,10 @@ public:
   bool load(std::string fileName);
   virtual bool hit(const ray &r, double t_min, double t_max,
                    hit_record &rec) const override;
+  virtual bool hit_any(const ray &r, double t_min, double t_max) const override;
   virtual bool bounding_box(aabb &output_box) const override;
+  virtual void
+  collect_lights(std::vector<std::shared_ptr<light>> &out) override;
 
   // Return the number of triangles loaded for diagnostics
   int getTriangleCount() const;
@@ -30,7 +32,7 @@ public:
   void buildMeshBVH();
 
   // Check if mesh BVH is built
-  bool hasMeshBVH() const { return mesh_bvh != nullptr; }
+  bool hasMeshBVH() const { return !mesh_bvh.empty(); }
 
 private:
   std::vector<triangle> triangleList;
@@ -40,8 +42,8 @@ private:
   float angle;
   std::string fileName;
 
-  // Per-mesh BVH for accelerated intersection
-  std::shared_ptr<bvh_node> mesh_bvh;
+  // Per-mesh BVH over triangleList (which is stored in BVH leaf order)
+  flat_bvh mesh_bvh;
 
   // Cached bounding box
   mutable aabb cached_box;

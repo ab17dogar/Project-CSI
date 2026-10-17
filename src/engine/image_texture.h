@@ -2,6 +2,7 @@
 #define IMAGE_TEXTURE_H
 
 #include "texture.h"
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <string>
@@ -104,12 +105,36 @@ private:
     if (j >= height)
       j = height - 1;
 
-    const double color_scale = 1.0 / 255.0;
     unsigned char *pixel = data + j * bytes_per_scanline + i * 3;
-
-    return color(color_scale * pixel[0], color_scale * pixel[1],
-                 color_scale * pixel[2]);
+    if (!srgb) {
+      const double color_scale = 1.0 / 255.0;
+      return color(color_scale * pixel[0], color_scale * pixel[1],
+                   color_scale * pixel[2]);
+    }
+    const double *lut = srgb_to_linear_table();
+    return color(lut[pixel[0]], lut[pixel[1]], lut[pixel[2]]);
   }
+
+  // 8-bit color textures are stored sRGB-encoded. Shading needs linear
+  // reflectance, so decode with the exact sRGB EOTF (IEC 61966-2-1).
+  static const double *srgb_to_linear_table() {
+    static const auto table = [] {
+      std::array<double, 256> t{};
+      for (int i = 0; i < 256; ++i) {
+        const double c = i / 255.0;
+        t[i] = c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+      }
+      return t;
+    }();
+    return table.data();
+  }
+
+public:
+  // Treat texels as sRGB color (true for base-color maps; set false for
+  // data textures such as roughness or normal maps).
+  bool srgb = true;
+
+private:
 
   unsigned char *data;
   int width, height;

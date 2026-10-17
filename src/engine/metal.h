@@ -1,18 +1,23 @@
 #ifndef METAL_H
 #define METAL_H
 
-#include "material.h"
+#include "pbr_material.h"
 
-class metal : public material {
-    public:
-        metal(const color& a, double f) : albedo(a), fuzz(f < 1 ? f : 1) {}
+/**
+ * @brief Conductor (XML type "Metal"): GGX with F0 = albedo.
+ *
+ * The Ray Tracing in One Weekend "fuzz" perturbation has no closed-form
+ * pdf, so it cannot be combined with light sampling. Fuzz is reinterpreted
+ * as GGX roughness: fuzz 0 is a perfect mirror, larger values blur the
+ * reflection in a comparable way.
+ */
+class metal : public pbr_material {
+public:
+  metal(const color &a, double f)
+      : pbr_material(a, 1.0f, static_cast<float>(f < 1 ? f : 1)), fuzz(f < 1 ? f : 1) {}
 
-        virtual bool scatter(
-            const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered) const override ;
-
-    public:
-        color albedo;
-        double fuzz;
+public:
+  double fuzz;
 };
 
 #endif

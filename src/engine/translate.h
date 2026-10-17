@@ -30,11 +30,20 @@ public:
     if (!ptr->hit(moved_r, t_min, t_max, rec))
       return false;
 
-    // Move the intersection point forwards by the offset
+    // Move the intersection point forwards by the offset. Translation keeps
+    // directions, so the child's normal and front_face are already right.
+    // (Re-running set_face_normal on the flipped normal, as before, always
+    // reported a front-face hit and broke glass inside instances.)
     rec.p = rec.p + offset;
-    rec.set_face_normal(moved_r, rec.normal);
+    rec.area_light = nullptr; // emitters inside instances are not sampled
 
     return true;
+  }
+
+  virtual bool hit_any(const ray &r, double t_min,
+                       double t_max) const override {
+    return ptr->hit_any(ray(r.origin() - offset, r.direction(), r.time()),
+                        t_min, t_max);
   }
 
   virtual bool bounding_box(aabb &output_box) const override {

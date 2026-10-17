@@ -28,6 +28,9 @@ color TraceRay(const ray &r, int depth, world &sceneWorld);
 // Render a single sample for a specific pixel
 color RenderPixel(world &sceneWorld, int x, int y, int sampleIndex);
 
+// Number of path samples discarded for being NaN/Inf (should be 0).
+long long InvalidSampleCount();
+
 void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
                          unsigned int threads, int tile_size, bool tile_debug,
                          const TileCallback &onTileFinished = TileCallback(),

@@ -4,87 +4,104 @@
 #include "../util/vec3.h"
 #include "hittable.h"
 #include "material.h"
+#include "sampling.h"
 #include "texture.h"
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
 /**
- * @brief Subsurface Scattering (SSS) material
+ * @brief Diffuse translucent material (XML type "SSS").
  *
- * Simulates light penetrating into translucent materials like
- * skin, marble, wax, and other organic materials.
+ * NOT true subsurface scattering. The previous implementation mixed ad-hoc
+ * direction perturbations, had no pdf and leaked energy. That made it
+ * incompatible with light sampling. This replacement is a physically valid,
+ * reciprocal BSDF: Lambertian reflection with albedo
+ *   R = surface_color * (1 - k)
+ * plus Lambertian transmission to the opposite side with albedo
+ *   T = scatter_color * k,
+ * where k = clamp(scatter_distance, 0, 1) / 2. It conserves energy whenever
+ * the input colors are <= 1.
  *
- * Uses a simplified diffusion approximation for SSS effect.
+ * Proper volumetric random-walk subsurface scattering needs interior-medium
+ * tracking in the integrator. That arrives with the participating-media work.
  */
 class sss_material : public material {
 public:
   sss_material(const color &surface_color, const color &scatter_color,
                float scatter_distance = 0.5f, float roughness = 0.3f)
-      : surface_albedo(make_shared<solid_color>(surface_color)),
-        scatter_color(scatter_color), scatter_distance(scatter_distance),
-        roughness(std::max(0.04f, roughness)) {}
+      : sss_material(make_shared<solid_color>(surface_color), scatter_color,
+                     scatter_distance, roughness) {}
 
   sss_material(shared_ptr<texture> albedo_tex, const color &scatter_color,
                float scatter_distance = 0.5f, float roughness = 0.3f)
       : surface_albedo(albedo_tex), scatter_color(scatter_color),
-        scatter_distance(scatter_distance),
-        roughness(std::max(0.04f, roughness)) {}
+        scatter_distance(scatter_distance), roughness(roughness) {
+    k = 0.5 * std::clamp(static_cast<double>(scatter_distance), 0.0, 1.0);
+  }
 
-  virtual bool scatter(const ray &r_in, const hit_record &rec,
-                       color &attenuation, ray &scattered) const override {
-    // Sample surface texture
-    color base_color = surface_albedo->value(rec.u, rec.v, rec.p);
+  color eval(const hit_record &rec, const vec3 &wo,
+             const vec3 &wi) const override {
+    (void)wo;
+    const double c = cos_theta(rec, wi);
+    if (c > 0.0)
+      return reflectance(rec) * INV_PI;
+    if (c < 0.0)
+      return transmittance() * INV_PI;
+    return color(0, 0, 0);
+  }
 
-    vec3 unit_direction = unit_vector(r_in.direction());
-    double cos_theta = fmin(dot(-unit_direction, rec.normal), 1.0);
+  double pdf(const hit_record &rec, const vec3 &wo,
+             const vec3 &wi) const override {
+    (void)wo;
+    const double c = cos_theta(rec, wi);
+    const double pr = reflect_probability(rec);
+    return (c > 0.0 ? pr : 1.0 - pr) * std::fabs(c) * INV_PI;
+  }
 
-    // Fresnel term for surface reflection
-    double fresnel = schlick_fresnel(cos_theta, 0.04);
-
-    vec3 scatter_direction;
-
-    if (random_double() < fresnel * (1.0 - roughness * 0.5)) {
-      // Surface specular reflection
-      vec3 reflected = reflect(unit_direction, rec.normal);
-      scatter_direction = reflected + roughness * random_in_unit_sphere();
-      if (scatter_direction.near_zero())
-        scatter_direction = rec.normal;
-      attenuation = color(1, 1, 1); // White specular
-    } else {
-      // Subsurface scattering simulation
-      // Mix of diffuse scatter with forward scattering for SSS approximation
-
-      // Blend between surface and subsurface color
-      double sss_factor = 0.4 * (1.0 - cos_theta); // More SSS at grazing angles
-      color mixed_color =
-          (1.0 - sss_factor) * base_color + sss_factor * scatter_color;
-
-      // Slightly biased random direction for forward scattering
-      vec3 random_dir = random_unit_vector();
-      vec3 forward_bias = -unit_direction * 0.2; // Slight forward push
-      scatter_direction = rec.normal + random_dir + forward_bias;
-
-      if (scatter_direction.near_zero())
-        scatter_direction = rec.normal;
-
-      attenuation = mixed_color;
-    }
-
-    scattered = ray(rec.p, unit_vector(scatter_direction));
-    return (dot(scattered.direction(), rec.normal) > 0) ||
-           (random_double() < 0.1);
+  bool sample(const hit_record &rec, const vec3 &wo, double uc, double u1,
+              double u2, bsdf_sample &out) const override {
+    (void)wo;
+    const double pr = reflect_probability(rec);
+    vec3 local = sampling::square_to_cosine_hemisphere(u1, u2);
+    if (local.z() <= 0.0)
+      return false;
+    const bool reflect = uc < pr;
+    if (!reflect)
+      local = vec3(local.x(), local.y(), -local.z());
+    out.wi = unit_vector(onb(rec.normal).local(local));
+    const double p = (reflect ? pr : 1.0 - pr) * std::fabs(local.z()) * INV_PI;
+    if (!(p > 0.0))
+      return false;
+    out.pdf = p;
+    const color f = (reflect ? reflectance(rec) : transmittance()) * INV_PI;
+    out.weight = f * (std::fabs(local.z()) / p);
+    out.is_delta = false;
+    out.is_transmission = !reflect;
+    out.eta = 1.0;
+    return true;
   }
 
 public:
   shared_ptr<texture> surface_albedo;
-  color scatter_color;    // Color of light scattering inside material
-  float scatter_distance; // How far light travels inside
-  float roughness;
+  color scatter_color;    // Color of light transmitted through the material
+  float scatter_distance; // Controls the transmitted fraction
+  float roughness;        // Unused by the diffuse model; kept for scene files
 
 private:
-  static double schlick_fresnel(double cosine, double f0) {
-    return f0 + (1.0 - f0) * pow((1.0 - cosine), 5);
+  color reflectance(const hit_record &rec) const {
+    return surface_albedo->value(rec.u, rec.v, rec.p) * (1.0 - k);
   }
+  color transmittance() const { return scatter_color * k; }
+  double reflect_probability(const hit_record &rec) const {
+    const double r = luminance(reflectance(rec));
+    const double t = luminance(transmittance());
+    if (r + t <= 0.0)
+      return 1.0;
+    return std::clamp(r / (r + t), 0.05, 0.95);
+  }
+
+  double k;
 };
 
 #endif

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ray-tracing-enhancement
 
   pull_request:
     branches:
@@ -13,40 +14,40 @@ on:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
+    name: Build & test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Install dependencies
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             sudo apt-get update
-            sudo apt-get install -y build-essential cmake libglm-dev libpng-dev
+            sudo apt-get install -y build-essential cmake libglm-dev libpng-dev \
+              libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
           else
             brew install cmake glm libpng
           fi
 
-      - name: Cache CMake build
-        uses: actions/cache@v4
-        with:
-          path: |
-            build
-            ~/.cache/ccache
-          key: ${{ runner.os }}-cmake-${{ hashFiles('**/CMakeLists.txt', 'CMakePresets.json') }}
-          restore-keys: |
-            ${{ runner.os }}-cmake-
-
       - name: Configure
-        run: cmake --preset default
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build -- -j2
+        run: cmake --build build -- -j3
 
-      - name: Run (smoke test)
-        run: ./build/Raytracer --help
+      - name: Correctness tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Smoke render
+        run: |
+          ./build/Raytracer --scene cornell_water_scene.xml --width 64 --samples 4 \
+            --no-denoise --quiet --out build/smoke.png --pfm build/smoke.pfm
+          test -s build/smoke.png && test -s build/smoke.pfm

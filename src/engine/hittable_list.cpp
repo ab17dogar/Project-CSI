@@ -35,3 +35,16 @@ bool hittable_list::bounding_box(aabb& output_box) const {
     
     return !first_box;
 }
+
+bool hittable_list::hit_any(const ray& r, double t_min, double t_max) const {
+    for (const auto& object : objects) {
+        if (object->hit_any(r, t_min, t_max))
+            return true;
+    }
+    return false;
+}
+
+void hittable_list::collect_lights(std::vector<std::shared_ptr<light>>& out) {
+    for (auto& object : objects)
+        object->collect_lights(out);
+}
