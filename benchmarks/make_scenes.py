@@ -150,12 +150,18 @@ def cornell_walls(s, floor_mat="white"):
     s.quad((-1, 0, -1), (0, 2, 0), (0, 0, 2), "red")          # left
     s.quad((1, 0, -1), (0, 0, 2), (0, 2, 0), "green")         # right
     # Ceiling light ("light" material defined by the caller): same footprint
-    # ratio as the original Cornell box.
+    # ratio as the original Cornell box. It must emit downward only: a
+    # two-sided light 1 mm under the ceiling lights the gap above it with an
+    # almost singular geometry term, which gave pure light sampling rare
+    # fireflies that carried 99% of its error.
     s.quad((-0.235, 1.999, -0.19), (0.47, 0, 0), (0, 0, 0.38), "light")
 
 
-def light_material(s, name, radiance):
-    s.material("Emissive", name, radiance, Strength=1.0)
+def light_material(s, name, radiance, two_sided=True):
+    if two_sided:
+        s.material("Emissive", name, radiance, Strength=1.0)
+    else:
+        s.material("Emissive", name, radiance, Strength=1.0, TwoSided=0)
 
 
 def main():
@@ -164,7 +170,7 @@ def main():
     # ------------------------------------------------------------------
     s = Scene(256, 1.0, 12, (0, 1, 3.9), (0, 1, 0), 39.3)
     cornell_walls(s)
-    light_material(s, "light", (17.0, 12.0, 4.0))
+    light_material(s, "light", (17.0, 12.0, 4.0), two_sided=False)
     s.box((0.33, 0, 0.37), (0.6, 0.6, 0.6), -18, "white")
     s.box((-0.34, 0, -0.29), (0.6, 1.2, 0.6), 17, "white")
     s.write("cornell_box", "Diffuse Cornell box with a small ceiling light.")
@@ -173,7 +179,7 @@ def main():
     s = Scene(256, 1.0, 12, (0, 1, 3.9), (0, 1, 0), 39.3)
     s.material("PBR", "glossy_floor", (0.73, 0.73, 0.73), Metallic=0.0, Roughness=0.2)
     cornell_walls(s, floor_mat="glossy_floor")
-    light_material(s, "light", (17.0, 12.0, 4.0))
+    light_material(s, "light", (17.0, 12.0, 4.0), two_sided=False)
     s.material("PBR", "copper", (0.95, 0.64, 0.54), Metallic=1.0, Roughness=0.15)
     s.material("Dielectric", "glass", None, IOR=1.5)
     s.sphere((-0.4, 0.4, -0.3), 0.4, "copper")

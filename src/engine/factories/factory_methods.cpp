@@ -941,8 +941,14 @@ void LoadMaterials(XMLElement *materialsElem) {
         strength = atof(strengthElem->Attribute("value"));
       }
       // Emissive uses color * strength
-      mat = make_shared<emissive>(
+      auto e = make_shared<emissive>(
           color(r * strength, g * strength, b * strength));
+      // Optional <TwoSided value="0"/>: emit only from the front face (the
+      // side the surface normal points to), like a real luminaire.
+      XMLElement *twoSidedElem = item->FirstChildElement("TwoSided");
+      if (twoSidedElem && twoSidedElem->Attribute("value"))
+        e->two_sided = atoi(twoSidedElem->Attribute("value")) != 0;
+      mat = e;
     } else if (type == "Dielectric") {
       float ior = 1.5f; // Default glass
       XMLElement *iorElem = item->FirstChildElement("IOR");

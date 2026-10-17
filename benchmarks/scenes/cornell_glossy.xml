@@ -38,6 +38,7 @@
     <Emissive name="light">
       <Color r="17" g="12" b="4" />
       <Strength value="1" />
+      <TwoSided value="0" />
     </Emissive>
     <PBR name="copper">
       <Color r="0.95" g="0.64" b="0.54" />

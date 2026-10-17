@@ -33,6 +33,7 @@
     <Emissive name="light">
       <Color r="17" g="12" b="4" />
       <Strength value="1" />
+      <TwoSided value="0" />
     </Emissive>
   </Materials>
   <Objects>

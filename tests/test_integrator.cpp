@@ -308,3 +308,32 @@ TEST(renders_are_deterministic_across_thread_counts) {
   CHECK(total > 0, "render is not black");
   CHECK(render::InvalidSampleCount() == 0, "no NaN/Inf samples");
 }
+
+// A one-sided emitter lights only the side its normal faces, consistently
+// for light sampling and for BSDF-sampled hits (and so for MIS).
+TEST(one_sided_emitters_light_only_their_front) {
+  const double rho = 0.5, Le = 3.0, side = 1.0, height = 1.0;
+  auto light_mat = std::make_shared<emissive>(color(Le, Le, Le));
+  light_mat->two_sided = false;
+  auto w = th::make_world(1);
+  auto white = std::make_shared<lambertian>(color(rho, rho, rho));
+  w->objects.push_back(make_floor(white));
+  // Ceiling plane above the light, facing down.
+  w->objects.push_back(std::make_shared<quad>(point3(-50, 2 * height, -50), vec3(100, 0, 0),
+                                              vec3(0, 0, 100), white));
+  // Normal cross(u, v) = (0, -1, 0): the light faces the floor.
+  w->objects.push_back(std::make_shared<quad>(point3(-side / 2, height, -side / 2), vec3(side, 0, 0),
+                                              vec3(0, 0, side), light_mat));
+  w->prepare();
+  const double expected_floor = rho * Le * 4 * form_factor_corner(side / 2, side / 2, height);
+  const ray up_to_ceiling(point3(0, 2 * height - 0.01, 0), vec3(0, 1, 0));
+  for (LightStrategy s : kStrategies) {
+    path_tracer_settings ps;
+    ps.max_depth = 1;
+    ps.strategy = s;
+    check_estimate(th::estimate_radiance(*w, kDownRay, ps, 100000),
+                   color(expected_floor, expected_floor, expected_floor), "front side lit", s);
+    const th::estimate back = th::estimate_radiance(*w, up_to_ceiling, ps, 20000);
+    CHECK(back.mean.x() == 0.0, "the back side emits nothing [" << th::strategy_name(s) << "]");
+  }
+}

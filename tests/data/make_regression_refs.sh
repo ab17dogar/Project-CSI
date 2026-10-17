@@ -10,7 +10,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BIN="${1:-$ROOT/build/Raytracer}"
 SPP=65536
 SEED=1000003   # never used by tests (they use small seeds)
-for scene in cornell_box veach_mis; do
+for scene in ${SCENES:-cornell_box veach_mis}; do
   "$BIN" --scene "$ROOT/benchmarks/scenes/$scene.xml" --width 48 --progressive \
     --samples "$SPP" --seed "$SEED" --no-denoise --quiet \
     --out "$ROOT/tests/data/regression_$scene.png" \
