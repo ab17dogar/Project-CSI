@@ -27,8 +27,14 @@ A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built fr
 - Intel OIDN denoiser integration (optional)
 
 ### Verification
-- **25 correctness tests** (`ctest`): χ² goodness-of-fit for every BSDF sampler, sample/pdf consistency for every light, analytic irradiance from rectangle, triangle, sphere, point, sun and environment lights under each strategy, a white furnace test, BVH vs. brute force, and thread-count determinism
+- **32 correctness tests** (`ctest`): χ² goodness-of-fit for every BSDF sampler, sample/pdf consistency for every light, analytic irradiance from rectangle, triangle, sphere, point, sun and environment lights under each strategy, a white furnace test, BVH vs. brute force, determinism, and a statistical regression test against stored references
 - Runs in CI on Linux and macOS, and under AddressSanitizer + UBSan
+
+### Measurement
+- **Equal-time rendering** (`--time-budget`) with per-pass error logging against a reference: MSE, relMSE, MAPE and **HDR-FLIP** (NVIDIA's reference implementation, validated against its published values)
+- Per-pixel variance output and **reference-noise-corrected** error
+- `rt_compare` image comparison tool; ray counts and Mrays/s
+- A six-scene benchmark suite (including Veach's MIS scene and an HDR sun-and-sky environment), plus scripts for references, equal-time sweeps and convergence plots. See [docs/BENCHMARKING.md](docs/BENCHMARKING.md)
 
 ### Interactive GUI
 - Real-time **progressive rendering**
@@ -167,6 +173,18 @@ cmake --build . --config Release
 | `--bvh` / `--linear` | BVH (default) or brute-force intersection |
 | `--denoise` / `--no-denoise` | OIDN denoising (default on if available) |
 | `--preset <name>` | Use preset: Preview, Draft, Final |
+
+Measurement mode (progressive, no denoising):
+
+| Flag | Description |
+|------|-------------|
+| `--time-budget <S>` | Render for S seconds of render time |
+| `--progressive` | Passes of doubling spp up to `--samples` |
+| `--reference <F.pfm>` | Log error against a reference after every pass |
+| `--ref-variance <F.pfm>` | Reference variance, to subtract its noise from the error |
+| `--log <F.csv>` | Per-pass CSV: time, spp, rays, MSE, relMSE, MAPE, FLIP |
+| `--variance-out <F.pfm>` | Per-pixel variance of the mean |
+| `--label <name>` / `--no-flip` | Method label in the log / skip FLIP |
 
 ### Running the Tests
 ```bash

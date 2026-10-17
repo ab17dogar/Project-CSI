@@ -23,6 +23,8 @@
 // stb image write (minimal wrapper header)
 #include "3rdParty/stb_image_write.h"
 #include "render_presets.h"
+#include "util/image_io.h"
+#include "eval/progressive.h"
 #include "util/logging.h"
 
 using namespace std;
@@ -89,6 +91,12 @@ void SaveImage(world &sceneWorld, const string &fileName,
                const vector<color> &bitmap);
 void SavePFM(world &sceneWorld, const string &fileName,
              const vector<color> &bitmap);
+int RunProgressive(world &w, const string &scenePath, const string &outPath,
+                   const string &pfmPath, unsigned threads, int tileSize,
+                   double timeBudget, long long maxSpp,
+                   const string &referencePath, const string &refVariancePath,
+                   const string &logPath, const string &varianceOutPath,
+                   bool logFlip, string label);
 
 // Logging flags defined in util/logging.cpp
 
@@ -108,6 +116,11 @@ int main(int argc, char **argv) {
   int rrDepthOverride = -1;
   long long seedOverride = -1;
   string integratorName;
+  // Progressive / measurement mode
+  bool progressive = false;
+  double timeBudget = 0.0;
+  string referencePath, refVariancePath, logPath, varianceOutPath, label;
+  bool logFlip = true;
   const Raytracer::presets::RenderPresetDefinition *presetDefinition = nullptr;
 
   // Simple argv parser
@@ -133,6 +146,26 @@ int main(int argc, char **argv) {
       accelOverride = 0;
     } else if (a == "--pfm" && i + 1 < argc) {
       pfmPath = argv[++i];
+    } else if (a == "--progressive") {
+      progressive = true;
+    } else if (a == "--time-budget" && i + 1 < argc) {
+      timeBudget = atof(argv[++i]);
+      progressive = true;
+    } else if (a == "--reference" && i + 1 < argc) {
+      referencePath = argv[++i];
+      progressive = true;
+    } else if (a == "--ref-variance" && i + 1 < argc) {
+      refVariancePath = argv[++i];
+    } else if (a == "--log" && i + 1 < argc) {
+      logPath = argv[++i];
+      progressive = true;
+    } else if (a == "--variance-out" && i + 1 < argc) {
+      varianceOutPath = argv[++i];
+      progressive = true;
+    } else if (a == "--no-flip") {
+      logFlip = false;
+    } else if (a == "--label" && i + 1 < argc) {
+      label = argv[++i];
     } else if (a == "--max-depth" && i + 1 < argc) {
       maxDepthOverride = atoi(argv[++i]);
     } else if (a == "--rr-depth" && i + 1 < argc) {
@@ -182,6 +215,15 @@ int main(int argc, char **argv) {
           << "  --rr-depth N     Bounces before Russian roulette\n"
           << "  --seed N         Random seed (same seed -> same image)\n"
           << "  --pfm <file>     Also write linear HDR radiance (.pfm)\n"
+          << "\nMeasurement (progressive rendering, no denoising):\n"
+          << "  --time-budget S  Render for S seconds (render time only)\n"
+          << "  --progressive    Passes of doubling spp up to --samples\n"
+          << "  --reference F    Reference .pfm: log error after every pass\n"
+          << "  --ref-variance F Reference variance .pfm (noise correction)\n"
+          << "  --log F          Per-pass CSV (time, spp, rays, MSE, FLIP)\n"
+          << "  --variance-out F Per-pixel variance of the mean (.pfm)\n"
+          << "  --no-flip        Skip FLIP in the per-pass log\n"
+          << "  --label NAME     Method label in the log (default: integrator)\n"
           << "  --denoise        Enable OIDN AI denoiser (default)\n"
           << "  --no-denoise     Disable denoiser\n"
           << "  --quiet          Suppress progress output\n"
@@ -337,6 +379,13 @@ int main(int argc, char **argv) {
   if (tile_size > pworld->GetImageWidth())
     tile_size = pworld->GetImageWidth();
 
+  if (progressive)
+    return RunProgressive(*pworld, resolvedScenePath, outPath, pfmPath,
+                          threads, tile_size, timeBudget,
+                          samplesOverride > 0 ? samplesOverride : 0,
+                          referencePath, refVariancePath, logPath,
+                          varianceOutPath, logFlip, label);
+
   // Time the render
   auto renderStart = std::chrono::high_resolution_clock::now();
 
@@ -361,38 +410,21 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-static double linear_to_srgb(double c) {
-  if (!(c > 0.0))
-    return 0.0;
-  return c <= 0.0031308 ? 12.92 * c : 1.055 * std::pow(c, 1.0 / 2.4) - 0.055;
-}
-
-// Portable float map: linear radiance per pixel, bottom row first. This is
-// the format used for error measurements against reference renders.
+// Portable float map: linear mean radiance per pixel. This is the format
+// used for error measurements against reference renders.
 void SavePFM(world &sceneWorld, const string &fileName,
              const vector<color> &bitmap) {
-  const int W = sceneWorld.GetImageWidth();
-  const int H = sceneWorld.GetImageHeight();
-  const double scale = 1.0 / sceneWorld.GetSamplesPerPixel();
-  ofstream out(fileName, ios::binary);
-  if (!out) {
+  render::RenderBuffers buffers;
+  buffers.width = sceneWorld.GetImageWidth();
+  buffers.height = sceneWorld.GetImageHeight();
+  buffers.spp = sceneWorld.GetSamplesPerPixel();
+  buffers.sum = bitmap;
+  if (write_pfm(fileName, buffers.mean())) {
+    if (!g_quiet.load())
+      cerr << "Saved PFM to " << fileName << "\n";
+  } else {
     cerr << "Failed to write PFM to " << fileName << "\n";
-    return;
   }
-  out << "PF\n" << W << ' ' << H << "\n-1.0\n"; // negative: little endian
-  std::vector<float> row(static_cast<size_t>(W) * 3);
-  for (int j = H - 1; j >= 0; --j) {
-    for (int i = 0; i < W; ++i) {
-      const color c = bitmap[static_cast<size_t>(W) * j + i] * scale;
-      row[3 * i + 0] = static_cast<float>(c.x());
-      row[3 * i + 1] = static_cast<float>(c.y());
-      row[3 * i + 2] = static_cast<float>(c.z());
-    }
-    out.write(reinterpret_cast<const char *>(row.data()),
-              static_cast<std::streamsize>(row.size() * sizeof(float)));
-  }
-  if (!g_quiet.load())
-    cerr << "Saved PFM to " << fileName << "\n";
 }
 
 void SaveImage(world &sceneWorld, const string &fileName,
@@ -465,5 +497,115 @@ void SaveImage(world &sceneWorld, const string &fileName,
       cerr << "Saved PPM to " << fileName << "\n";
   }
 
-  std::cerr << "\nDone.\n";
+  if (!g_quiet.load())
+    std::cerr << "\nDone.\n";
+}
+
+// Progressive / equal-time rendering with optional per-pass error logging.
+int RunProgressive(world &w, const string &scenePath, const string &outPath,
+                   const string &pfmPath, unsigned threads, int tileSize,
+                   double timeBudget, long long maxSpp,
+                   const string &referencePath, const string &refVariancePath,
+                   const string &logPath, const string &varianceOutPath,
+                   bool logFlip, string label) {
+  namespace fs = std::filesystem;
+  const LightStrategy strategy = w.pconfig->lightStrategy;
+  if (label.empty())
+    label = strategy == LightStrategy::MIS    ? "mis"
+            : strategy == LightStrategy::BSDF ? "bsdf"
+                                              : "nee";
+  const string sceneName = fs::path(scenePath).stem().string();
+
+  image_rgb reference, refVariance;
+  string err;
+  if (!referencePath.empty() && !read_pfm(referencePath, reference, &err)) {
+    cerr << "Cannot read reference: " << err << "\n";
+    return 2;
+  }
+  if (!refVariancePath.empty() &&
+      !read_pfm(refVariancePath, refVariance, &err)) {
+    cerr << "Cannot read reference variance: " << err << "\n";
+    return 2;
+  }
+
+  std::ofstream log;
+  if (!logPath.empty()) {
+    fs::path lp(logPath);
+    if (lp.has_parent_path()) {
+      std::error_code ec;
+      fs::create_directories(lp.parent_path(), ec);
+    }
+    log.open(logPath);
+    if (!log) {
+      cerr << "Cannot write log " << logPath << "\n";
+      return 2;
+    }
+    log << "# scene=" << scenePath << " method=" << label
+        << " width=" << w.GetImageWidth() << " height=" << w.GetImageHeight()
+        << " max_depth=" << w.GetMaxDepth() << " seed=" << w.pconfig->seed
+        << " threads=" << threads << " time_budget=" << timeBudget
+        << " max_spp=" << maxSpp << " reference=" << referencePath << "\n";
+    log << eval::csv_header() << "\n";
+  }
+
+  eval::progressive_settings ps;
+  ps.time_budget = timeBudget;
+  ps.max_spp = timeBudget > 0.0 ? maxSpp
+                                : (maxSpp > 0 ? maxSpp : w.GetSamplesPerPixel());
+  ps.threads = threads;
+  ps.tile_size = tileSize;
+  ps.reference = referencePath.empty() ? nullptr : &reference;
+  ps.reference_variance = refVariancePath.empty() ? nullptr : &refVariance;
+  ps.flip = logFlip;
+  ps.on_pass = [&](const eval::pass_record &p) {
+    if (log.is_open())
+      log << eval::csv_row(p, sceneName, label) << "\n" << std::flush;
+    if (!g_quiet.load()) {
+      cerr << "pass " << p.pass << ": " << p.spp << " spp, " << std::fixed
+           << std::setprecision(3) << p.total_seconds << " s";
+      if (p.has_metrics) {
+        cerr << std::scientific << std::setprecision(4)
+             << ", relMSE " << p.error.relmse;
+        if (p.error.flip >= 0.0)
+          cerr << std::fixed << std::setprecision(4) << ", FLIP "
+               << p.error.flip;
+      }
+      cerr << std::defaultfloat << "\n";
+    }
+  };
+
+  eval::progressive_result result;
+  try {
+    result = eval::render_progressive(w, ps);
+  } catch (const std::exception &e) {
+    cerr << "Progressive render failed: " << e.what() << "\n";
+    return 2;
+  }
+
+  const eval::pass_record &last = result.passes.back();
+  if (!g_quiet.load()) {
+    const double rays = static_cast<double>(last.camera_rays + last.bounce_rays +
+                                            last.shadow_rays);
+    cerr << "Rendered " << last.spp << " spp in " << last.total_seconds
+         << " s (" << rays / last.total_seconds / 1e6 << " Mrays/s)\n";
+    const long long bad = render::InvalidSampleCount();
+    if (bad > 0)
+      cerr << "WARNING: " << bad
+           << " samples returned NaN/Inf and were discarded\n";
+  }
+
+  w.pconfig->SAMPLES_PER_PIXEL = static_cast<int>(result.buffers.spp);
+  SaveImage(w, outPath, result.buffers.sum);
+  if (!pfmPath.empty())
+    SavePFM(w, pfmPath, result.buffers.sum);
+  if (!varianceOutPath.empty()) {
+    if (write_pfm(varianceOutPath, result.buffers.variance_of_mean())) {
+      if (!g_quiet.load())
+        cerr << "Saved variance to " << varianceOutPath << "\n";
+    } else {
+      cerr << "Failed to write " << varianceOutPath << "\n";
+      return 2;
+    }
+  }
+  return 0;
 }

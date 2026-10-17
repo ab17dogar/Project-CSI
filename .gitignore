@@ -57,3 +57,15 @@ out.png
 
 # Extra local build trees
 build-*/
+
+# Benchmark images are large and regenerable: keep logs, metadata and plots
+# in git, not the images themselves.
+benchmarks/references/*/*.pfm
+benchmarks/references/*/*.png
+benchmarks/results/*/*/*.pfm
+benchmarks/results/*/*/*.png
+!benchmarks/results/*/plots/*.png
+
+# Python bytecode
+__pycache__/
+*.pyc

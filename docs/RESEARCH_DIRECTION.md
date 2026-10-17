@@ -83,7 +83,7 @@ geometry in an unbiased estimator.
 - **Ablations:** each of 1-3 above switched off on its own.
 - **Venues:** EGSR (paper or Symposium track), HPG, JCGT, or a Eurographics short paper.
 
-## How the Phase 1 engine already supports this
+## How the engine already supports this
 
 - `light_sampler` takes the shading point and normal. A Gaussian light
   hierarchy plugs in behind the same `sample` / `pmf` interface.
@@ -95,6 +95,11 @@ geometry in an unbiased estimator.
 - Deterministic per-pixel random streams make equal-sample comparisons exact.
 - `constant_medium` already gives unbiased stochastic transmittance for
   shadow rays.
+- Phase 2 measurement pipeline ([BENCHMARKING.md](BENCHMARKING.md)):
+  equal-time rendering, relMSE and HDR-FLIP against references with the
+  reference noise removed, and convergence plots. A new method is a new entry
+  in `benchmarks/run_benchmarks.py`. The paper's results tables come straight
+  out of it once the captured-scene benchmarks are added.
 
 ## Due diligence before Phase 3
 

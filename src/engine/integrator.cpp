@@ -51,6 +51,11 @@ bool shadow_ray(const hit_record &rec, const light_sample &ls, double eps,
 
 } // namespace
 
+ray_counters &thread_ray_counters() {
+  thread_local ray_counters counters;
+  return counters;
+}
+
 path_tracer_settings settings_from_config(const config &cfg) {
   path_tracer_settings s;
   s.max_depth = cfg.MAX_DEPTH;
@@ -81,8 +86,14 @@ color trace_path(const ray &camera_ray, const world &scene,
   ray r(camera_ray.origin(), unit_vector(camera_ray.direction()),
         camera_ray.time());
 
+  ray_counters &counters = thread_ray_counters();
+
   for (int depth = 0;; ++depth) {
     hit_record rec;
+    if (depth == 0)
+      ++counters.camera;
+    else
+      ++counters.bounce;
     if (!scene.hit(r, t_min, INF, rec)) {
       // Escaped: collect environment emission.
       for (const light *env : scene.infiniteLights) {
@@ -143,7 +154,7 @@ color trace_path(const ray &camera_ray, const world &scene,
               mat->is_phase_function() ? 1.0 : abs_dot(ls.wi, rec.normal);
           const color f = mat->eval(rec, wo, ls.wi) * cos_i;
           if (!is_black(f) && shadow_ray(rec, ls, eps, shadow, t_max) &&
-              !scene.hit_any(shadow, t_min, t_max)) {
+              (++counters.shadow, !scene.hit_any(shadow, t_min, t_max))) {
             const double light_pdf = pmf * ls.pdf;
             double w = 1.0;
             if (!ls.is_delta && combine)

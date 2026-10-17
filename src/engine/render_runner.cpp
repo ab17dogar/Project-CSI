@@ -6,7 +6,6 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <random>
 #include <thread>
 
 #include "engine/camera.h"
@@ -47,7 +46,71 @@ inline color Sanitize(const color &c) {
   return color(0, 0, 0);
 }
 
+std::vector<Tile> MakeTiles(int width, int height, int tile_size) {
+  if (tile_size <= 0)
+    tile_size = 16;
+  tile_size = std::min(tile_size, std::max(width, 1));
+  std::vector<Tile> tiles;
+  for (int y = 0; y < height; y += tile_size)
+    for (int x = 0; x < width; x += tile_size)
+      tiles.push_back({x, y, std::min(tile_size, width - x),
+                       std::min(tile_size, height - y)});
+  return tiles;
+}
+
+unsigned int ThreadCount(unsigned int requested) {
+  const unsigned int hw = std::thread::hardware_concurrency();
+  const unsigned int cap = hw ? hw : requested;
+  return std::max<unsigned int>(1, std::min<unsigned int>(requested, cap));
+}
+
 } // namespace
+
+// --------------------------------------------------------------------------
+// Buffers
+// --------------------------------------------------------------------------
+
+void RenderBuffers::reset(int w, int h) {
+  width = w;
+  height = h;
+  spp = 0;
+  const size_t n = static_cast<size_t>(w) * static_cast<size_t>(h);
+  sum.assign(n, color(0, 0, 0));
+  sum_sq.assign(n, color(0, 0, 0));
+}
+
+image_rgb RenderBuffers::mean() const {
+  image_rgb img(width, height);
+  const double inv = spp > 0 ? 1.0 / static_cast<double>(spp) : 0.0;
+  for (int y = 0; y < height; ++y)
+    for (int x = 0; x < width; ++x)
+      img.set(x, y, sum[static_cast<size_t>(y) * width + x] * inv);
+  return img;
+}
+
+image_rgb RenderBuffers::variance_of_mean() const {
+  image_rgb img(width, height);
+  if (spp < 2)
+    return img;
+  const double n = static_cast<double>(spp);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const size_t i = static_cast<size_t>(y) * width + x;
+      color v;
+      for (int k = 0; k < 3; ++k) {
+        // Unbiased sample variance, then divided by n for the mean.
+        const double s2 = (sum_sq[i][k] - sum[i][k] * sum[i][k] / n) / (n - 1);
+        v[k] = std::max(0.0, s2) / n;
+      }
+      img.set(x, y, v);
+    }
+  }
+  return img;
+}
+
+// --------------------------------------------------------------------------
+// Rendering
+// --------------------------------------------------------------------------
 
 color TraceRay(const ray &r, int depth, world &sceneWorld) {
   sceneWorld.prepare();
@@ -68,168 +131,156 @@ color RenderPixel(world &sceneWorld, int x, int y, int sampleIndex) {
 
 long long InvalidSampleCount() { return g_invalid_samples.load(); }
 
-void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
-                         unsigned int threads, int tile_size, bool tile_debug,
-                         const TileCallback &onTileFinished,
-                         std::atomic<bool> *cancelFlag) {
+PassResult RenderPass(world &sceneWorld, RenderBuffers &buffers,
+                      long long first_sample, int spp, unsigned int threads,
+                      int tile_size, const PassOptions &options) {
   // Builds the BVH (if selected) and the light list, once.
   sceneWorld.prepare();
   const path_tracer_settings settings =
       settings_from_config(*sceneWorld.pconfig);
   const uint64_t seed = sceneWorld.pconfig->seed;
-
   const int width = sceneWorld.GetImageWidth();
   const int height = sceneWorld.GetImageHeight();
-  const int samples = sceneWorld.GetSamplesPerPixel();
-  std::shared_ptr<camera> camera = sceneWorld.pcamera;
+  if (buffers.width != width || buffers.height != height)
+    buffers.reset(width, height);
+  const camera &cam = *sceneWorld.pcamera;
 
-  if (tile_size <= 0) {
-    tile_size = 16;
-  }
-  if (tile_size > width) {
-    tile_size = width;
-  }
+  const std::vector<Tile> tiles = MakeTiles(width, height, tile_size);
+  const size_t total_tiles = tiles.size();
 
-  bitmap.clear();
-  bitmap.resize(static_cast<size_t>(width) * static_cast<size_t>(height));
-
-  std::vector<Tile> tiles;
-  for (int y = 0; y < height; y += tile_size) {
-    for (int x = 0; x < width; x += tile_size) {
-      const int w = std::min(tile_size, width - x);
-      const int h = std::min(tile_size, height - y);
-      tiles.push_back({x, y, w, h});
-    }
-  }
-
-  struct TileStat {
-    int x0;
-    int y0;
-    int w;
-    int h;
-    long long us;
-  };
-
-  std::vector<TileStat> tile_stats;
-  std::mutex tile_stats_mtx;
+  PassResult result;
+  std::vector<double> tile_ms(total_tiles, 0.0);
   std::mutex print_mtx;
   std::atomic<size_t> next_tile{0};
   std::atomic<size_t> tiles_done{0};
-  const size_t total_tiles = tiles.size();
-  std::atomic<long long> total_tile_time_us{0};
+  std::atomic<long long> total_tile_us{0};
   std::atomic<bool> cancelled{false};
+  std::atomic<uint64_t> camera_rays{0}, bounce_rays{0}, shadow_rays{0};
+  std::atomic<bool> *const cancel_flag = options.cancel;
+  auto should_cancel = [&]() { return cancel_flag && cancel_flag->load(); };
 
-  auto worker = [&](unsigned int thread_index) {
-    (void)thread_index;
+  auto worker = [&]() {
+    const ray_counters before = thread_ray_counters();
     while (true) {
-      if (cancelFlag && cancelFlag->load()) {
+      if (should_cancel()) {
         cancelled = true;
         break;
       }
-
-      const size_t tileIndex = next_tile.fetch_add(1);
-      if (tileIndex >= total_tiles) {
+      const size_t tile_index = next_tile.fetch_add(1);
+      if (tile_index >= total_tiles)
         break;
-      }
-      const Tile tile = tiles[tileIndex];
+      const Tile tile = tiles[tile_index];
+      const auto t0 = std::chrono::steady_clock::now();
 
-      const auto tile_t0 = std::chrono::high_resolution_clock::now();
-
-      for (int yy = tile.y0; yy < tile.y0 + tile.h; ++yy) {
-        if (cancelFlag && cancelFlag->load()) {
-          cancelled = true;
-          break;
-        }
+      for (int yy = tile.y0; yy < tile.y0 + tile.h && !should_cancel(); ++yy) {
         for (int xx = tile.x0; xx < tile.x0 + tile.w; ++xx) {
-          color pixel_color(0, 0, 0);
           const uint64_t pixel_index =
               static_cast<uint64_t>(yy) * static_cast<uint64_t>(width) +
               static_cast<uint64_t>(xx);
-          for (int s = 0; s < samples; ++s) {
-            // Each (pixel, sample) gets its own stream: the image does not
-            // depend on thread count or tile order.
-            seed_thread_rng(pixel_index, static_cast<uint64_t>(s), seed);
-            const ray r = CameraRay(*camera, xx, yy, width, height);
-            pixel_color += Sanitize(trace_path(r, sceneWorld, settings));
+          const size_t i = static_cast<size_t>(height - 1 - yy) * width + xx;
+          color &s1 = buffers.sum[i];
+          color &s2 = buffers.sum_sq[i];
+          for (int s = 0; s < spp; ++s) {
+            // Each (pixel, sample index) gets its own stream, so the image
+            // depends neither on thread count or tile order nor on how the
+            // samples are split into passes. Samples are added to the buffer
+            // one by one, so the floating-point summation order is the same
+            // too: a split render is bit-identical to a single pass.
+            seed_thread_rng(pixel_index,
+                            static_cast<uint64_t>(first_sample + s), seed);
+            const ray r = CameraRay(cam, xx, yy, width, height);
+            const color L = Sanitize(trace_path(r, sceneWorld, settings));
+            s1 += L;
+            s2 += L * L;
           }
-          bitmap[(height - 1 - yy) * width + xx] = pixel_color;
-        }
-        if (cancelFlag && cancelFlag->load()) {
-          break;
         }
       }
-
-      if (cancelFlag && cancelFlag->load()) {
+      if (should_cancel()) {
         cancelled = true;
         break;
       }
 
-      const auto tile_t1 = std::chrono::high_resolution_clock::now();
-      const long long us =
-          std::chrono::duration_cast<std::chrono::microseconds>(tile_t1 -
-                                                                tile_t0)
-              .count();
-      total_tile_time_us.fetch_add(us);
-      {
-        std::lock_guard<std::mutex> lock(tile_stats_mtx);
-        tile_stats.push_back({tile.x0, tile.y0, tile.w, tile.h, us});
-      }
-
+      const long long us = std::chrono::duration_cast<std::chrono::microseconds>(
+                               std::chrono::steady_clock::now() - t0)
+                               .count();
+      tile_ms[tile_index] = us / 1000.0;
+      total_tile_us.fetch_add(us);
       const size_t done = ++tiles_done;
-      const double avg_us =
-          done ? static_cast<double>(total_tile_time_us.load()) /
-                     static_cast<double>(done)
-               : 0.0;
-      const size_t remaining = total_tiles > done ? total_tiles - done : 0;
-      const double est_remaining_ms =
-          (avg_us * static_cast<double>(remaining)) / 1000.0;
+      const double avg_us = static_cast<double>(total_tile_us.load()) /
+                            static_cast<double>(done);
+      const size_t remaining = total_tiles - done;
+      const double eta_ms = avg_us * static_cast<double>(remaining) / 1000.0;
 
-      if (!g_quiet.load()) {
+      if (options.print_progress && !g_quiet.load()) {
         std::lock_guard<std::mutex> lock(print_mtx);
         std::cerr << "\rTiles remaining: " << remaining
-                  << " | ETA: " << (est_remaining_ms / 1000.0) << " s"
-                  << std::flush;
+                  << " | ETA: " << (eta_ms / 1000.0) << " s" << std::flush;
       }
-
-      if (onTileFinished) {
+      if (options.on_tile_finished) {
         TileProgressStats stats;
         stats.tilesDone = done;
         stats.totalTiles = total_tiles;
         stats.avgTileMs = avg_us / 1000.0;
-        stats.estRemainingMs = est_remaining_ms;
-        onTileFinished(bitmap, width, height, stats);
+        stats.estRemainingMs = eta_ms;
+        std::lock_guard<std::mutex> lock(print_mtx);
+        options.on_tile_finished(buffers.sum, width, height, stats);
       }
     }
+    const ray_counters &after = thread_ray_counters();
+    camera_rays += after.camera - before.camera;
+    bounce_rays += after.bounce - before.bounce;
+    shadow_rays += after.shadow - before.shadow;
   };
 
-  const unsigned int hw_threads = std::thread::hardware_concurrency();
-  const unsigned int max_threads = hw_threads ? hw_threads : threads;
-  const unsigned int nthreads =
-      std::max<unsigned int>(1, std::min<unsigned int>(threads, max_threads));
-
+  const unsigned int nthreads = ThreadCount(threads);
   std::vector<std::thread> pool;
   pool.reserve(nthreads);
+  const auto tstart = std::chrono::steady_clock::now();
+  for (unsigned int i = 0; i < nthreads; ++i)
+    pool.emplace_back(worker);
+  for (auto &th : pool)
+    th.join();
+  result.seconds =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - tstart)
+          .count();
 
-  const auto tstart = std::chrono::high_resolution_clock::now();
-  for (unsigned int i = 0; i < nthreads; ++i) {
-    pool.emplace_back(worker, i);
-  }
-  for (auto &th : pool) {
-    if (th.joinable()) {
-      th.join();
-    }
-  }
-  const auto tend = std::chrono::high_resolution_clock::now();
-  const double total_ms =
-      std::chrono::duration<double, std::milli>(tend - tstart).count();
+  result.cancelled = cancelled.load();
+  result.camera_rays = camera_rays.load();
+  result.bounce_rays = bounce_rays.load();
+  result.shadow_rays = shadow_rays.load();
+  if (!result.cancelled)
+    buffers.spp += spp;
+  result.tile_ms = std::move(tile_ms);
+  return result;
+}
+
+void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
+                         unsigned int threads, int tile_size, bool tile_debug,
+                         const TileCallback &onTileFinished,
+                         std::atomic<bool> *cancelFlag) {
+  sceneWorld.prepare();
+  const int width = sceneWorld.GetImageWidth();
+  const int height = sceneWorld.GetImageHeight();
+  const int samples = sceneWorld.GetSamplesPerPixel();
+
+  RenderBuffers buffers;
+  buffers.reset(width, height);
+  PassOptions options;
+  options.cancel = cancelFlag;
+  options.on_tile_finished = onTileFinished;
+  options.print_progress = true;
+  const PassResult pass =
+      RenderPass(sceneWorld, buffers, 0, samples, threads, tile_size, options);
+  bitmap = buffers.sum; // sum of samples; callers divide by spp
 
   if (!g_quiet.load()) {
-    std::lock_guard<std::mutex> lock(print_mtx);
-    if (cancelled.load()) {
-      std::cerr << "\rRender cancelled after " << total_ms << " ms\n";
+    if (pass.cancelled) {
+      std::cerr << "\rRender cancelled after " << pass.seconds * 1000.0
+                << " ms\n";
     } else {
       std::cerr << "\rTiles remaining: 0\n";
-      std::cerr << "Render time: " << total_ms << " ms\n";
+      std::cerr << "Render time: " << pass.seconds * 1000.0 << " ms ("
+                << pass.total_rays() / pass.seconds / 1e6 << " Mrays/s)\n";
       const long long bad = g_invalid_samples.load();
       if (bad > 0)
         std::cerr << "WARNING: " << bad
@@ -238,7 +289,7 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
   }
 
   // OIDN denoising pass (if enabled and not cancelled)
-  if (!cancelled.load() && sceneWorld.pconfig &&
+  if (!pass.cancelled && sceneWorld.pconfig &&
       sceneWorld.pconfig->enableDenoiser) {
     oidn_denoiser denoiser;
     if (oidn_denoiser::is_available()) {
@@ -248,7 +299,6 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
       }
 
       // Normalize samples (divide by sample count for averaging)
-      const int samples = sceneWorld.GetSamplesPerPixel();
       std::vector<color> normalized_bitmap(bitmap.size());
       for (size_t i = 0; i < bitmap.size(); i++) {
         normalized_bitmap[i] = bitmap[i] / static_cast<double>(samples);
@@ -269,33 +319,22 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
     }
   }
 
-  if (!g_quiet.load() && (g_verbose.load() || tile_debug)) {
-    std::lock_guard<std::mutex> lock(tile_stats_mtx);
-    if (!tile_stats.empty()) {
-      long long min_us = tile_stats[0].us;
-      long long max_us = tile_stats[0].us;
-      long long sum_us = 0;
-      for (const auto &stat : tile_stats) {
-        min_us = std::min(min_us, stat.us);
-        max_us = std::max(max_us, stat.us);
-        sum_us += stat.us;
-      }
-
-      const double avg_ms = static_cast<double>(sum_us) /
-                            static_cast<double>(tile_stats.size()) / 1000.0;
-      const double min_ms = static_cast<double>(min_us) / 1000.0;
-      const double max_ms = static_cast<double>(max_us) / 1000.0;
-      std::cerr << "Tile stats: count=" << tile_stats.size()
-                << ", avg=" << avg_ms << " ms, min=" << min_ms
-                << " ms, max=" << max_ms << " ms\n";
-
-      if (tile_debug) {
-        for (const auto &stat : tile_stats) {
-          std::cerr << "  tile(" << stat.x0 << "," << stat.y0 << ") " << stat.w
-                    << "x" << stat.h << ": "
-                    << (static_cast<double>(stat.us) / 1000.0) << " ms\n";
-        }
-      }
+  if (!g_quiet.load() && (g_verbose.load() || tile_debug) &&
+      !pass.tile_ms.empty()) {
+    const auto [mn, mx] =
+        std::minmax_element(pass.tile_ms.begin(), pass.tile_ms.end());
+    double sum_ms = 0;
+    for (double ms : pass.tile_ms)
+      sum_ms += ms;
+    std::cerr << "Tile stats: count=" << pass.tile_ms.size()
+              << ", avg=" << sum_ms / pass.tile_ms.size() << " ms, min=" << *mn
+              << " ms, max=" << *mx << " ms\n";
+    if (tile_debug) {
+      const std::vector<Tile> tiles = MakeTiles(width, height, tile_size);
+      for (size_t i = 0; i < tiles.size(); ++i)
+        std::cerr << "  tile(" << tiles[i].x0 << "," << tiles[i].y0 << ") "
+                  << tiles[i].w << "x" << tiles[i].h << ": " << pass.tile_ms[i]
+                  << " ms\n";
     }
   }
 }

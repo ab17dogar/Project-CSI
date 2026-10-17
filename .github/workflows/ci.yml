@@ -51,3 +51,20 @@ jobs:
           ./build/Raytracer --scene cornell_water_scene.xml --width 64 --samples 4 \
             --no-denoise --quiet --out build/smoke.png --pfm build/smoke.pfm
           test -s build/smoke.png && test -s build/smoke.pfm
+
+      - name: Measurement pipeline smoke test
+        run: |
+          S=benchmarks/scenes/cornell_box.xml
+          ./build/Raytracer --scene $S --width 32 --progressive --samples 256 --seed 1000003 \
+            --no-denoise --quiet --out build/ref.png --pfm build/ref.pfm --variance-out build/ref_var.pfm
+          ./build/Raytracer --scene $S --width 32 --time-budget 1 --seed 1 --reference build/ref.pfm \
+            --ref-variance build/ref_var.pfm --log build/log.csv --no-denoise --quiet \
+            --out build/test.png --pfm build/test.pfm
+          ./build/rt_compare build/test.pfm build/ref.pfm --ref-variance build/ref_var.pfm --json
+          grep -q '^cornell_box,mis,' build/log.csv
+
+      - name: Generated scenes are up to date
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python3 benchmarks/make_scenes.py
+          git diff --exit-code benchmarks/scenes

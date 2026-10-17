@@ -52,6 +52,9 @@ set(RAYTRACER_CORE_HEADERS
     src/engine/integrator.h
     src/engine/hdri_environment.h
     src/util/vec3.h
+    src/util/image_io.h
+    src/eval/metrics.h
+    src/eval/progressive.h
     src/util/ray.h
     src/defs.h
 )
@@ -83,6 +86,9 @@ set(RAYTRACER_CORE_SOURCES
     src/engine/render_runner.cpp
     src/engine/factories/factory_methods.cpp
     src/util/vec3.cpp
+    src/util/image_io.cpp
+    src/eval/metrics.cpp
+    src/eval/progressive.cpp
     src/util/logging.cpp
     src/3rdParty/stb_image_write.cpp
     src/3rdParty/stb_image_impl.cpp
@@ -179,15 +185,21 @@ if(RAYTRACER_BUILD_TESTS)
         tests/test_lights.cpp
         tests/test_integrator.cpp
         tests/test_bvh.cpp
+        tests/test_eval.cpp
     )
+    target_compile_definitions(raytracer_tests PRIVATE RAYTRACER_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     target_include_directories(raytracer_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(raytracer_tests PRIVATE raytracer_core)
     add_test(NAME correctness COMMAND raytracer_tests)
     set_tests_properties(correctness PROPERTIES TIMEOUT 1800)
 endif()
 
+# Image comparison tool (MSE / relMSE / FLIP against a reference)
+add_executable(rt_compare tools/rt_compare.cpp)
+target_link_libraries(rt_compare PRIVATE raytracer_core)
+
 # Install rules: binary + assets (source assets directory)
-install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
+install(TARGETS ${PROJECT_NAME} rt_compare RUNTIME DESTINATION bin)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets DESTINATION share/${PROJECT_NAME})
 
 # Convenience target: install into a staging directory under the build tree

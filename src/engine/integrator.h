@@ -4,6 +4,8 @@
 #include "../util/ray.h"
 #include "config.h"
 
+#include <cstdint>
+
 class world;
 
 struct path_tracer_settings {
@@ -34,5 +36,14 @@ color trace_path(const ray &camera_ray, const world &scene,
                  const path_tracer_settings &settings);
 
 path_tracer_settings settings_from_config(const config &cfg);
+
+// Rays traced by the calling thread since it started (monotonic). The render
+// loop takes differences to report rays per pass and Mrays/s.
+struct ray_counters {
+  uint64_t camera = 0; // primary rays
+  uint64_t bounce = 0; // continuation rays after scattering
+  uint64_t shadow = 0; // visibility rays for next event estimation
+};
+ray_counters &thread_ray_counters();
 
 #endif
