@@ -299,6 +299,14 @@ error than MIS. MIS stays within 1% of the better single strategy in every
 scene. These are preliminary numbers from a 4-core cloud container; the
 references will be re-rendered at higher sample counts before publication.
 
+The renders behind those numbers (30 s each, seed 1), next to the 16384-spp
+references. BSDF sampling is noisy wherever the lights are small; light
+sampling fails on the sharp plates under Veach's large lights. The white
+specks MIS leaves in the glass scene are caustics, which only BSDF sampling can
+find:
+
+<img src="benchmarks/results/preliminary/plots/renders.png" alt="Reference, MIS, BSDF sampling and light sampling renders of the six benchmark scenes at equal time" width="800"/>
+
 ---
 
 ## 🎬 Demo Video

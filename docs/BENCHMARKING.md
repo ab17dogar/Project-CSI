@@ -10,6 +10,7 @@ cmake --build build                                   # Raytracer, rt_compare, t
 python3 benchmarks/render_references.py --spp 65536   # once per scene suite / renderer change
 python3 benchmarks/run_benchmarks.py --time 60 --repeats 3
 python3 benchmarks/plot_convergence.py benchmarks/results/<run>   # needs matplotlib
+python3 benchmarks/plot_renders.py benchmarks/results/<run>       # image grid; needs the .pfm files
 ```
 
 References live in `benchmarks/references/` and are not committed (they are
@@ -30,6 +31,7 @@ settings) and, after plotting, `plots/` with figures and a markdown table.
 | `benchmarks/render_references.py` | References with their own seed and metadata |
 | `benchmarks/run_benchmarks.py` | Equal-time sweeps over scenes x methods x seeds |
 | `benchmarks/plot_convergence.py` | Error-vs-time figures and a summary table |
+| `benchmarks/plot_renders.py` | Reference and final renders side by side, one row per scene |
 | `tools/validate_flip.sh` | Checks the FLIP integration against NVIDIA's published values |
 
 ## Metrics
@@ -136,6 +138,11 @@ HDR-FLIP plot: [`convergence_flip.png`](../benchmarks/results/preliminary/plots/
 | `glass_caustic` | 2.41e-2 | 13 | 0.99 | 0.064 |
 | `env_objects` | 3.06e-2 | 9.0 | 1.04 | 0.018 |
 | `sun_sky_bunny` | 4.55e-5 | 0.99 | 41 | 0.004 |
+
+The final renders of seed 1 next to the references. Each scene has one
+display exposure for all columns; the metrics are computed on the HDR images.
+
+![Equal-time renders](../benchmarks/results/preliminary/plots/renders.png)
 
 What the numbers say:
 
