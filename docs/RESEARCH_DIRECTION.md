@@ -39,6 +39,17 @@ rays that pass through them.
   NEE point sample, in a common measure (starting from Simon et al. 2017).
   (c) Closed-form optical depth of a Gaussian along a ray (erf) for shadow
   rays through the field.
+- *Design for (b) in the stage 1 model.* The renderer uses the 3DGRT
+  particle model (each Gaussian evaluated at its maximum response along a
+  ray, composited front to back; [GAUSSIAN_FIELDS.md](GAUSSIAN_FIELDS.md)).
+  There the radiance arriving from the field is a sum of per-Gaussian terms
+  T_i alpha_i c_i, so MIS can be done per Gaussian, as for many separate
+  area lights: NEE picks Gaussian i with probability P_i, samples a point
+  from its 3D distribution and connects to it. The induced direction pdf,
+  p_i(w) = integral over t > 0 of N(x + t w; mu_i, Sigma_i) t^2 dt, is a
+  closed-form line integral (erf), so a BSDF ray can weight every Gaussian
+  it passes with P_i p_i(w). Visibility is the product of (1 - alpha_j) of
+  the Gaussians in front, which shadow rays already compute.
 - *Model statement.* 3DGS is trained with alpha compositing, not volume
   rendering. The estimator is unbiased for a stated volumetric model (EVER-
   style or Condor-style kernels); the gap to the trained model is measured,
@@ -136,7 +147,7 @@ contribution is in what is measured:
 | Stage | Content | Depends on |
 |---|---|---|
 | 0 | Multi-view dataset export: training views, test views with and without the inserted object, poses in the NeRF / Blender `transforms.json` format, depth and normals, `points3d.ply` initialization | nothing; **done** |
-| 1 | Gaussian field in the path tracer: load 3DGS `.ply`, acceleration structure over ellipsoids, closed-form transmittance and emission along rays, SH evaluation, BSDF-only baseline. Tests against analytic single-Gaussian integrals | verify items 1-2 |
+| 1 | Gaussian field in the path tracer: load 3DGS `.ply`, acceleration structure over Gaussians, emission and transmittance along rays (particle model), SH evaluation, BSDF-only baseline; unoptimized Gaussian stand-in built from a dataset, and a per-region insertion demo. Tests against closed forms and brute force | 0; **done** |
 | 2 | C1: power-based Gaussian selection first, then the SH-bounded light hierarchy; line-integral MIS | 1 |
 | 3 | C2 + C3: correlated differential rendering, receiver model, local reflectance | 2 |
 | 4 | C4: oracle swaps, region metrics, baselines; captured scenes (Mip-NeRF 360) for qualitative results | 0-3 |

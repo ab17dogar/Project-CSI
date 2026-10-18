@@ -16,6 +16,7 @@ set(RAYTRACER_CORE_HEADERS
     src/3rdParty/tinyxml2/tinyxml2.h
     src/3rdParty/ObjLoader/OBJ_Loader.h
     src/engine/aabb.h
+    src/engine/gaussian_field.h
     src/engine/bvh_node.h
     src/engine/camera.h
     src/engine/config.h
@@ -62,6 +63,7 @@ set(RAYTRACER_CORE_HEADERS
 set(RAYTRACER_CORE_SOURCES
     src/3rdParty/tinyxml2/tinyxml2.cpp
     src/engine/aabb.cpp
+    src/engine/gaussian_field.cpp
     src/engine/bvh_node.cpp
     src/engine/camera.cpp
     src/engine/config.cpp
@@ -186,6 +188,7 @@ if(RAYTRACER_BUILD_TESTS)
         tests/test_integrator.cpp
         tests/test_bvh.cpp
         tests/test_eval.cpp
+        tests/test_gaussians.cpp
     )
     target_compile_definitions(raytracer_tests PRIVATE RAYTRACER_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     target_include_directories(raytracer_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests)

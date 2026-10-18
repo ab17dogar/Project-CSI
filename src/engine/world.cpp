@@ -3,6 +3,7 @@
 #include "aabb.h"
 #include "bvh_node.h"
 #include "config.h"
+#include "gaussian_field.h"
 #include "hdri_environment.h"
 #include "light.h"
 #include "light_sampler.h"
@@ -124,7 +125,13 @@ void world::prepare() {
 
   // Scene scale: drives the ray epsilon and the power of infinite lights.
   aabb box;
-  if (bounding_box(box)) {
+  bool has_box = bounding_box(box);
+  if (field && field->size() > 0) {
+    const aabb fb = field->world_bounds();
+    box = has_box ? surrounding_box(box, fb) : fb;
+    has_box = true;
+  }
+  if (has_box) {
     sceneCenter = 0.5 * (box.min() + box.max());
     sceneRadius = std::max(1e-3, 0.5 * (box.max() - box.min()).length());
     const double extent =
@@ -175,6 +182,9 @@ void world::prepare() {
       area += l->type() == light::kind::area ? 1 : 0;
     std::cerr << "Lights: " << lights.size() << " (" << area << " area, "
               << infiniteLights.size() << " infinite)" << std::endl;
+    if (field)
+      std::cerr << "Gaussian field: " << field->size()
+                << " Gaussians, SH degree " << field->sh_degree() << std::endl;
   }
 
   prepared = true;

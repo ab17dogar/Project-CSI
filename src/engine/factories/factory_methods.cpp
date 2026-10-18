@@ -13,6 +13,7 @@
 #include "../config.h"
 #include "../dielectric.h"
 #include "../emissive.h"
+#include "../gaussian_field.h"
 #include "../ggx_material.h"
 #include "../gltf_loader.h"
 #include "../hdri_environment.h"
@@ -200,6 +201,42 @@ shared_ptr<world> LoadScene(string fileName) {
     return shared_ptr<world>();
   }
   pworld->objects = LoadObjects(objectsElem);
+
+  // Gaussian field (optional, at most one):
+  //   <GaussianField file="capture.ply"> <Position x y z/> <Scale value/>
+  //   <Rotation x y z/> (degrees, applied as Rx Ry Rz) </GaussianField>
+  if (XMLElement *fieldElem = objectsElem->FirstChildElement("GaussianField")) {
+    if (fieldElem->NextSiblingElement("GaussianField"))
+      cerr << "LoadScene: only the first <GaussianField> is used" << endl;
+    const char *file = fieldElem->Attribute("file");
+    if (!file) {
+      cerr << "LoadScene: <GaussianField> needs a file attribute" << endl;
+      return shared_ptr<world>();
+    }
+    const std::string path =
+        g_scene_directory.empty()
+            ? std::string(file)
+            : (std::filesystem::path(g_scene_directory) / file).string();
+    auto field = make_shared<gaussian_field>();
+    std::string error;
+    if (!field->load_ply(path, &error)) {
+      cerr << "LoadScene: " << error << endl;
+      return shared_ptr<world>();
+    }
+    auto vec_of = [](XMLElement *e, double dflt) {
+      if (!e)
+        return vec3(dflt, dflt, dflt);
+      return vec3(e->DoubleAttribute("x", dflt), e->DoubleAttribute("y", dflt),
+                  e->DoubleAttribute("z", dflt));
+    };
+    double scale = 1.0;
+    if (XMLElement *s = fieldElem->FirstChildElement("Scale"))
+      scale = s->DoubleAttribute("value", s->DoubleAttribute("x", 1.0));
+    field->set_transform(vec_of(fieldElem->FirstChildElement("Position"), 0.0), scale,
+                         vec_of(fieldElem->FirstChildElement("Rotation"), 0.0));
+    field->build();
+    pworld->field = field;
+  }
 
   // Load HDRI environment map (optional)
   XMLElement *envElem = configElem->NextSiblingElement("Environment");

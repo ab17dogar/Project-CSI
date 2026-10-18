@@ -14,6 +14,7 @@ class material;
 class bvh_node;
 class light;
 class light_sampler;
+class gaussian_field;
 
 class world : public hittable {
 public:
@@ -75,6 +76,10 @@ public:
 
   // Point lights for artificial indoor lighting
   std::vector<std::shared_ptr<class PointLight>> pointLights;
+
+  // A 3DGS capture rendered as an emitting, absorbing medium (optional).
+  // Not a hittable: the integrator composites it along every ray segment.
+  std::shared_ptr<gaussian_field> field;
 
   // Dynamic sky colors (for interactive rendering)
   color skyColorTop{0.5, 0.7, 1.0};    // Sky color at zenith

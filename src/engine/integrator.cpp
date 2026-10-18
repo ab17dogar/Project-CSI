@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "gaussian_field.h"
 #include "light.h"
 #include "light_sampler.h"
 #include "material.h"
@@ -94,7 +95,23 @@ color trace_path(const ray &camera_ray, const world &scene,
       ++counters.camera;
     else
       ++counters.bounce;
-    if (!scene.hit(r, t_min, INF, rec)) {
+    const bool hit_surface = scene.hit(r, t_min, INF, rec);
+
+    // The Gaussian field in front of the surface (or along the whole ray):
+    // its emission, and attenuation of everything behind it. No light
+    // sampling strategy covers the field yet, so its emission has full
+    // weight under every strategy.
+    if (scene.field) {
+      color le;
+      double transmittance;
+      scene.field->trace(r, t_min, hit_surface ? rec.t : INF, le, transmittance);
+      L += beta * le;
+      beta *= transmittance;
+      if (is_black(beta))
+        break;
+    }
+
+    if (!hit_surface) {
       // Escaped: collect environment emission.
       for (const light *env : scene.infiniteLights) {
         const color le = env->le(r.direction());
@@ -160,7 +177,10 @@ color trace_path(const ray &camera_ray, const world &scene,
             if (!ls.is_delta && combine)
               w = sampling::power_heuristic(light_pdf,
                                             mat->pdf(rec, wo, ls.wi));
-            L += beta * f * ls.li * (w / light_pdf);
+            // Light reaching the shading point through the field.
+            const double visible =
+                scene.field ? scene.field->transmittance(shadow, t_min, t_max) : 1.0;
+            L += beta * f * ls.li * (w * visible / light_pdf);
           }
         }
       } else if (l && !use_light_sampling) {
