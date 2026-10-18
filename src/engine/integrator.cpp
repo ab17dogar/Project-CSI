@@ -83,6 +83,7 @@ color trace_path(const ray &camera_ray, const world &scene,
   double prev_bsdf_pdf = 0.0;
   point3 prev_p;
   vec3 prev_n;
+  vec3 prev_receiver_n; // normal light sampling used at prev_p (zero: none)
 
   ray r(camera_ray.origin(), unit_vector(camera_ray.direction()),
         camera_ray.time());
@@ -112,6 +113,7 @@ color trace_path(const ray &camera_ray, const world &scene,
         mis.bsdf_pdf = prev_bsdf_pdf;
         mis.light_pmf = lights->pmf(prev_p, prev_n, scene.fieldLight);
         mis.nee_only = !use_bsdf_hits;
+        mis.normal = prev_receiver_n;
         pmis = &mis;
       }
       scene.field->trace(r, t_min, hit_surface ? rec.t : INF, le, transmittance, pmis);
@@ -166,6 +168,11 @@ color trace_path(const ray &camera_ray, const world &scene,
     if (depth >= settings.max_depth || !mat->scatters())
       break;
 
+    // Lights may skip what lies below the horizon of a surface that does not
+    // transmit; the same normal goes into the MIS weights at the next vertex.
+    const vec3 receiver_n =
+        (mat->is_phase_function() || mat->transmits()) ? vec3(0, 0, 0) : rec.normal;
+
     // Next event estimation.
     if (lights && mat->has_smooth_lobes()) {
       double pmf = 0.0;
@@ -176,7 +183,7 @@ color trace_path(const ray &camera_ray, const world &scene,
         light_sample ls;
         ray shadow;
         double t_max = INF;
-        if (l->sample_li(rec.p, u1, u2, ls) && !is_black(ls.li)) {
+        if (l->sample_li_at(rec.p, receiver_n, u1, u2, ls) && !is_black(ls.li)) {
           const double cos_i =
               mat->is_phase_function() ? 1.0 : abs_dot(ls.wi, rec.normal);
           const color f = mat->eval(rec, wo, ls.wi) * cos_i;
@@ -220,6 +227,7 @@ color trace_path(const ray &camera_ray, const world &scene,
     prev_bsdf_pdf = bs.pdf;
     prev_p = rec.p;
     prev_n = rec.normal;
+    prev_receiver_n = receiver_n;
 
     // Russian roulette on the throughput, with the 1/eta^2 radiance scaling
     // factored out so paths inside glass are not culled for being "dim".

@@ -72,6 +72,7 @@ public:
     double bsdf_pdf = 0.0;   // solid-angle density of the ray's direction
     double light_pmf = 0.0;  // probability of picking the field as the light
     bool nee_only = false;   // light sampling only: weight 0 where it covers
+    vec3 normal{0, 0, 0};    // receiver normal used by light sampling (or zero)
   };
 
   // Emission and transmittance along r for t in (t_min, t_max). With mis,
@@ -93,32 +94,49 @@ public:
    * front of it), pdf = P_i p_i(wi) and field_index. False if the sampled
    * direction meets the Gaussian behind x or below the 1/255 cut-off.
    */
-  bool sample_emission(const point3 &x, double u_select, const double u[4],
+  // n: the receiver's normal, for the light hierarchy's horizon bound (zero
+  // if the receiver transmits or has none).
+  bool sample_emission(const point3 &x, const vec3 &n, double u_select, const double u[4],
                        light_sample &out) const;
   // P_i p_i(w) for a unit world direction w from x.
-  double emission_pdf(int i, const point3 &x, const vec3 &w) const;
+  double emission_pdf(int i, const point3 &x, const vec3 &w,
+                      const vec3 &n = vec3(0, 0, 0)) const;
 
   /**
-   * How light sampling picks a Gaussian. power: in proportion to emitted
-   * power, the same everywhere. tree: a light hierarchy over the acceleration
-   * structure; at a shading point each node is weighted by its power over
-   * its squared distance (clamped by its size), down to one Gaussian, so
-   * nearby emitters are preferred. P_i then depends on the shading point.
+   * How light sampling picks a Gaussian.
+   *   power          in proportion to emitted power, the same everywhere
+   *   tree_distance  light hierarchy on the acceleration structure: each
+   *                  node weighted by power over squared distance (clamped
+   *                  by its size) from the shading point
+   *   tree_emitter   + the emitters' orientation and view-dependent colour:
+   *                  each Gaussian by its exact projected area and SH
+   *                  radiance toward the shading point; each node by a
+   *                  Cauchy-Schwarz bound on its Gaussians' projected areas
+   *                  and its power-weighted SH, evaluated toward the point
+   *   tree           + the receiver: a conservative cosine bound from each
+   *                  node's bounding sphere; nothing below the horizon of a
+   *                  surface that does not transmit
+   * Any choice is unbiased: MIS weights use the same probabilities, and a
+   * Gaussian that is never picked keeps full weight on BSDF rays.
    */
-  enum class selection { power, tree };
+  enum class selection { power, tree_distance, tree_emitter, tree };
+  static bool parse_selection(const std::string &name, selection &out);
   void set_selection(selection s) { selection_ = s; }
   selection selection_mode() const { return selection_; }
-  // Picks a Gaussian for light sampling at world point x; pmf = P_i(x).
-  // Returns -1 if nothing emits.
-  int select_gaussian(const point3 &x, double u, double &pmf) const;
-  // P_i(x) of that choice.
-  double select_pmf(int i, const point3 &x) const;
+  // Picks a Gaussian for light sampling at world point x (receiver normal
+  // n, or zero); pmf = P_i(x, n). Returns -1 if nothing emits.
+  int select_gaussian(const point3 &x, double u, double &pmf,
+                      const vec3 &n = vec3(0, 0, 0)) const;
+  // P_i(x, n) of that choice.
+  double select_pmf(int i, const point3 &x, const vec3 &n = vec3(0, 0, 0)) const;
   // Luminance of the total emitted power (light::power units).
   double power() const { return total_power_; }
 
   // Radiance of one Gaussian toward a direction in the field's frame:
   // SH + 0.5, clamped at 0.
   static color eval_sh(int degree, const float *sh, const vec3 &dir);
+  // The 16 real SH basis functions (3DGS conventions) at a unit direction.
+  static void sh_basis(const vec3 &dir, double Y[16]);
 
   size_t size() const { return g_.size(); }
   int sh_degree() const { return degree_; }
@@ -140,11 +158,15 @@ private:
 
   void to_local(const ray &r, point3 &o, vec3 &d) const;
   point3 point_to_local(const point3 &x) const;
+  vec3 normal_to_local(const vec3 &n) const;
   // Selection in the field's frame (tree importances use local distances).
-  int select_local(const point3 &x, double u, double &pmf) const;
-  double select_pmf_local(int i, const point3 &x) const;
-  double node_importance(int node, const point3 &x) const;
-  double leaf_weight(int g, const point3 &x) const;
+  // memo: reuse branch probabilities computed since the last memo_begin()
+  // (same x and n), as MIS does for every Gaussian along one ray.
+  int select_local(const point3 &x, const vec3 &n, double u, double &pmf) const;
+  double select_pmf_local(int i, const point3 &x, const vec3 &n, bool memo = false) const;
+  void memo_begin() const;
+  double node_importance(int node, const point3 &x, const vec3 &n) const;
+  double leaf_weight(int g, const point3 &x, const vec3 &n) const;
   // p_i for a local origin and unit local direction.
   double direction_pdf_local(const gaussian &g, const point3 &o, const vec3 &w) const;
   // Every Gaussian whose maximum response along the local ray lies in
@@ -167,6 +189,14 @@ private:
   std::vector<double> node_power_; // per node: sum over its Gaussians
   std::vector<int> parent_;        // per node (-1 for the root)
   std::vector<int> leaf_of_;       // per Gaussian: its leaf node
+  // Stage 2c bounds. Per Gaussian: luminance of the view-independent
+  // colour and |det M| = 1 / (s1 s2 s3). Per node, with w_i = o_i L_i:
+  // W = sum w_i, Q = sum w_i (2 pi / |det M_i|)^2 M_i^T M_i (6 entries; the
+  // projected area of Gaussian i toward w is sqrt(w^T Q_i w)), and the
+  // luminance SH coefficients summed with weights o_i * mean projected area.
+  std::vector<float> g_lum_dc_, g_det_;
+  std::vector<float> g_lum_sh_; // luminance of each SH coefficient, (degree + 1)^2 per Gaussian
+  std::vector<float> node_w_, node_q_, node_sh_, node_shw_;
 
   // World -> local: x_local = rot_ (x - position_) / scale_.
   double rot_[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}; // R^T, row-major
@@ -185,6 +215,8 @@ public:
       : light(kind::area), field_(field) {}
   bool sample_li(const point3 &ref, double u1, double u2,
                  light_sample &out) const override;
+  bool sample_li_at(const point3 &ref, const vec3 &n, double u1, double u2,
+                    light_sample &out) const override;
   double pdf_li(const point3 &, const vec3 &, const hit_record *) const override {
     return 0.0;
   }

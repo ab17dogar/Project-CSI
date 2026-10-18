@@ -61,6 +61,7 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("--seed", type=int, default=1, help="which seed's renders to show")
+    ap.add_argument("--methods", nargs="*", help="methods to show (default: all)")
     args = ap.parse_args()
 
     try:
@@ -76,7 +77,7 @@ def main():
                    if p.is_dir() and p.name != "plots" and p.name not in common.SCENES)
     scenes = [s for s in common.SCENES if (args.run_dir / s).is_dir()] + extra
     known = list(METHOD_STYLE)
-    found = {m for (_, m, _) in summary}
+    found = {m for (_, m, _) in summary if not args.methods or m in args.methods}
     methods = [m for m in known if m in found] + sorted(found - set(known))
 
     rows = []

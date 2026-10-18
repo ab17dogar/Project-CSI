@@ -18,6 +18,9 @@ Each scene isolates a light-transport situation a method is usually judged on:
                   Gaussians spread over the scene and a dim wall of large
                   ones (many lights at very different distances: light
                   selection by power versus by a light hierarchy)
+  gaussian_spots  view-dependent, flat Gaussian lights (SH degree-1 lobes)
+                  around a table: what the light tree's orientation, SH and
+                  horizon bounds are for
 
 Run from the repository root:  python3 benchmarks/make_scenes.py
 Pure standard library; the output is deterministic.
@@ -153,18 +156,35 @@ C0 = 0.28209479177387814
 
 
 def write_gaussian_ply(name, gaussians):
-    """3DGS-layout binary PLY (SH degree 0). gaussians: (mean, scale, radiance,
-    opacity), axis-aligned. Deterministic bytes, so the CI check can diff it."""
-    props = ("x", "y", "z", "nx", "ny", "nz", "f_dc_0", "f_dc_1", "f_dc_2", "opacity",
-             "scale_0", "scale_1", "scale_2", "rot_0", "rot_1", "rot_2", "rot_3")
+    """3DGS-layout binary PLY. gaussians: (mean, scale, radiance, opacity) or
+    (mean, scale, radiance, opacity, (direction, strength)), axis-aligned. The
+    optional lobe is SH degree 1: radiance toward a viewer in unit direction
+    w from the Gaussian gains strength * dot(w, direction) per channel (and
+    loses it on the far side; 3DGS clamps below zero). Degree 0 unless a lobe
+    is given. Deterministic bytes, so the CI check can diff it."""
+    C1 = 0.4886025119029199
+    lobes = any(len(g) > 4 for g in gaussians)
+    props = ["x", "y", "z", "nx", "ny", "nz", "f_dc_0", "f_dc_1", "f_dc_2"]
+    if lobes:
+        props += [f"f_rest_{k}" for k in range(9)]
+    props += ["opacity", "scale_0", "scale_1", "scale_2", "rot_0", "rot_1", "rot_2", "rot_3"]
     header = ("ply\nformat binary_little_endian 1.0\n"
               f"element vertex {len(gaussians)}\n" +
               "".join(f"property float {p}\n" for p in props) + "end_header\n")
     with open(os.path.join(OUT, name), "wb") as f:
         f.write(header.encode())
-        for mean, scale, radiance, opacity in gaussians:
+        for g in gaussians:
+            mean, scale, radiance, opacity = g[:4]
             dc = [(c - 0.5) / C0 for c in radiance]
-            f.write(struct.pack("<17f", *mean, 0, 0, 0, *dc, math.log(opacity / (1 - opacity)),
+            rest = []
+            if lobes:
+                (ex, ey, ez), strength = g[4] if len(g) > 4 else ((0, 0, 0), (0, 0, 0))
+                # 3DGS evaluates SH at the ray direction d = -w, with
+                # Y1 = -C1 y, Y2 = C1 z, Y3 = -C1 x; channel-major.
+                for sc in strength:
+                    rest += [sc * ey / C1, -sc * ez / C1, sc * ex / C1]
+            f.write(struct.pack(f"<{len(props)}f", *mean, 0, 0, 0, *dc, *rest,
+                                math.log(opacity / (1 - opacity)),
                                 *(math.log(s) for s in scale), 1, 0, 0, 0))
 
 
@@ -315,6 +335,50 @@ def main():
     s.box((1.7, 0, -0.8), (0.8, 1.2, 0.8), 25, "white")
     s.field("gaussian_lights.ply")
     s.write("gaussian_lights", "A Gaussian field of 400 small bright lights and a dim wall lighting a floor, a sphere and a box.")
+
+    # ------------------------------------------------------------------
+    # View-dependent, flat Gaussian lights: downlights under a dark ceiling,
+    # wall washers and floor uplights, all with SH degree-1 lobes, and a
+    # table that hides most of them from what lies below it. Power alone
+    # misjudges every one of them: the lobes send little light sideways,
+    # the flat ones are thin edge-on, and half of them lie below the horizon
+    # of most surfaces.
+    rng = random.Random(11)
+    lights = []
+    for i in range(6):
+        for j in range(4):
+            x = -4.5 + 9.0 * (i + 0.5) / 6
+            z = -3.0 + 6.0 * (j + 0.5) / 4
+            lights.append(((x, 3.0, z), (0.12, 0.012, 0.12), (10.0, 9.0, 7.5), 0.95,
+                           ((0, -1, 0), (30.0, 27.0, 22.5))))
+    for i in range(10):
+        x = -4.5 + 9.0 * (i + 0.5) / 10
+        lights.append(((x, 0.15, -3.85), (0.25, 0.25, 0.012), (3.0, 4.0, 6.0), 0.9,
+                       ((0, 0.6, 0.8), (9.0, 12.0, 18.0))))
+    for side in (-1, 1):
+        for k in range(40):
+            z = -3.5 + 7.0 * (k + 0.5) / 40
+            lights.append(((5.4 * side, 0.05, z + rng.uniform(-0.05, 0.05)), (0.03, 0.01, 0.03),
+                           (20.0, 8.0, 4.0), 0.95, ((0, 1, 0), (40.0, 16.0, 8.0))))
+    write_gaussian_ply("gaussian_spots.ply", lights)
+    s = Scene(320, 4 / 3, 6, (0.0, 1.7, 6.5), (0.0, 0.9, 0.0), 50)
+    s.material("Lambertian", "floor", (0.5, 0.5, 0.5))
+    s.material("Lambertian", "wall", (0.7, 0.7, 0.7))
+    s.material("PBR", "table", (0.55, 0.35, 0.2), Metallic=0.0, Roughness=0.35)
+    s.material("PBR", "metal", (0.9, 0.9, 0.9), Metallic=1.0, Roughness=0.3)
+    s.material("Lambertian", "white", (0.73, 0.73, 0.73))
+    s.quad((-6, 0, -6), (0, 0, 12), (12, 0, 0), "floor")
+    s.quad((-6, 0, -4), (12, 0, 0), (0, 3.4, 0), "wall")
+    s.quad((-6, 3.4, -4), (12, 0, 0), (0, 0, 10), "wall")   # ceiling, above the downlights
+    s.quad((-1.6, 0.8, -0.8), (3.2, 0, 0), (0, 0, 1.6), "table")
+    for lx in (-1.5, 1.5):
+        for lz in (-0.7, 0.7):
+            s.box((lx, 0, lz), (0.08, 0.8, 0.08), 0, "table")
+    s.sphere((-0.5, 1.15, 0.0), 0.35, "metal")
+    s.box((0.8, 0.8, -0.2), (0.5, 0.5, 0.5), 30, "white")
+    s.box((-2.8, 0, 1.0), (0.7, 1.1, 0.7), -15, "white")
+    s.field("gaussian_spots.ply")
+    s.write("gaussian_spots", "View-dependent Gaussian lights (downlights, wall washers, floor uplights) around a table.")
 
 
 if __name__ == "__main__":

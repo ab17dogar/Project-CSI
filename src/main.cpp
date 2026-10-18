@@ -198,8 +198,10 @@ int main(int argc, char **argv) {
       g_display_exposure = std::pow(2.0, atof(argv[++i]));
     } else if (a == "--field-sampler" && i + 1 < argc) {
       fieldSampler = argv[++i];
-      if (fieldSampler != "power" && fieldSampler != "tree") {
-        cerr << "Unknown field sampler '" << fieldSampler << "' (expected power or tree)" << endl;
+      gaussian_field::selection unused;
+      if (!gaussian_field::parse_selection(fieldSampler, unused)) {
+        cerr << "Unknown field sampler '" << fieldSampler
+             << "' (expected power, tree, tree-distance or tree-emitter)" << endl;
         return 4;
       }
     } else if (a == "--geometry-out" && i + 1 < argc) {
@@ -258,7 +260,8 @@ int main(int argc, char **argv) {
           << "  --up X,Y,Z         Override the camera up vector\n"
           << "  --fov DEG          Override the vertical field of view\n"
           << "  --exposure STOPS   Exposure of the PNG output (HDR output unchanged)\n"
-          << "  --field-sampler S  Gaussian light selection: power or tree\n"
+          << "  --field-sampler S  Gaussian light selection: power, tree,\n"
+          << "                     tree-distance or tree-emitter (ablations)\n"
           << "  --geometry-out P   Write P_depth.pfm (z-depth) and P_normal.pfm\n"
           << "                     (world space) of the first hit per pixel\n"
           << "\nMeasurement (progressive rendering, no denoising):\n"
@@ -349,9 +352,11 @@ int main(int argc, char **argv) {
   // Apply denoiser setting
   pworld->pconfig->enableDenoiser = useDenoiser;
 
-  if (!fieldSampler.empty() && pworld->field)
-    pworld->field->set_selection(fieldSampler == "tree" ? gaussian_field::selection::tree
-                                                        : gaussian_field::selection::power);
+  if (!fieldSampler.empty() && pworld->field) {
+    gaussian_field::selection sel;
+    gaussian_field::parse_selection(fieldSampler, sel);
+    pworld->field->set_selection(sel);
+  }
 
   // Camera overrides keep the scene's lens (aperture, focus distance).
   if (!lookFromArg.empty() || !lookAtArg.empty() || !upArg.empty() ||

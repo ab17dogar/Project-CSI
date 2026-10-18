@@ -63,6 +63,12 @@ public:
   // Phase functions (participating media) have no cosine foreshortening.
   virtual bool is_phase_function() const { return false; }
 
+  // True if light from behind the surface can scatter toward the viewer
+  // (transmission). Light sampling may skip what lies below the horizon of
+  // a surface that does not transmit; a wrong answer costs efficiency, not
+  // correctness (MIS still covers it).
+  virtual bool transmits() const { return false; }
+
   // f(wo, wi) over the non-delta lobes, without the cosine factor.
   virtual color eval(const hit_record &rec, const vec3 &wo,
                      const vec3 &wi) const = 0;

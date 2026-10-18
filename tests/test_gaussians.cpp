@@ -475,7 +475,7 @@ TEST(gaussian_emission_sampling_matches_pdf) {
   for (int i = 0; i < n; ++i) {
     light_sample ls;
     const double u[4] = {random_double(), random_double(), random_double(), random_double()};
-    if (!f.sample_emission(x, random_double(), u, ls))
+    if (!f.sample_emission(x, vec3(0, 0, 0), random_double(), u, ls))
       continue;
     CHECK_NEAR(ls.pdf, f.emission_pdf(ls.field_index, x, ls.wi), 1e-9 * ls.pdf, "reported pdf");
     CHECK_NEAR(ls.wi.length(), 1.0, 1e-12, "unit direction");
@@ -586,9 +586,13 @@ TEST(gaussian_field_light_sampling_is_unbiased) {
   E += color(1, 1, 1) * (I * (to_light.y() / std::sqrt(r2)) / r2 * T_light);
   const color expected = rho / PI * E;
   double se[3] = {0, 0, 0};
-  for (auto sel : {gaussian_field::selection::power, gaussian_field::selection::tree}) {
+  const std::pair<gaussian_field::selection, const char *> selections[] = {
+      {gaussian_field::selection::power, "power"},
+      {gaussian_field::selection::tree_distance, "tree-distance"},
+      {gaussian_field::selection::tree_emitter, "tree-emitter"},
+      {gaussian_field::selection::tree, "tree"}};
+  for (const auto &[sel, sel_name] : selections) {
     f->set_selection(sel);
-    const char *sel_name = sel == gaussian_field::selection::tree ? "tree" : "power";
     for (LightStrategy st : kStrategies) {
       path_tracer_settings ps;
       ps.max_depth = 1;
@@ -609,34 +613,59 @@ TEST(gaussian_field_light_sampling_is_unbiased) {
 
 // The light hierarchy: at any shading point the selection probabilities of
 // all Gaussians sum to 1, sampled choices follow them, and nearby emitters
-// are preferred over equally bright distant ones.
+// are preferred over equally bright distant ones. Every tree variant, with
+// and without a receiver normal, on flat, rotated, view-dependent Gaussians.
 TEST(gaussian_light_tree_selection_is_consistent) {
   seed_thread_rng(31, 1);
   gaussian_field f;
   for (int i = 0; i < 500; ++i) {
     const vec3 mean(random_double(-5, 5), random_double(0, 3), random_double(-5, 5));
     const double s = random_double(0.02, 0.3);
-    f.add(mean, vec3(s, s * random_double(0.5, 1), s * random_double(0.5, 1)), kIdentity,
-          random_double(0.2, 0.95),
-          constant_sh(color(random_double(0.1, 20), random_double(0.1, 20), random_double(0.1, 20))).data(), 0);
+    const double q[4] = {random_double(-1, 1), random_double(-1, 1), random_double(-1, 1),
+                         random_double(-1, 1)};
+    float sh[12];
+    const std::vector<float> c0 =
+        constant_sh(color(random_double(0.1, 20), random_double(0.1, 20), random_double(0.1, 20)));
+    for (int k = 0; k < 3; ++k)
+      sh[k] = c0[static_cast<size_t>(k)];
+    for (int k = 3; k < 12; ++k)
+      sh[k] = static_cast<float>(random_double(-3, 3));
+    f.add(mean, vec3(s, s * random_double(0.5, 1), s * random_double(0.02, 1)), q,
+          random_double(0.2, 0.95), sh, 1);
   }
   f.set_transform(vec3(0.5, -0.2, 1.0), 1.3, vec3(10, 30, -5));
   f.build();
-  f.set_selection(gaussian_field::selection::tree);
+  const std::pair<gaussian_field::selection, const char *> modes[] = {
+      {gaussian_field::selection::tree_distance, "tree-distance"},
+      {gaussian_field::selection::tree_emitter, "tree-emitter"},
+      {gaussian_field::selection::tree, "tree"}};
+  for (const auto &[mode, mode_name] : modes)
+  for (const vec3 nrm : {vec3(0, 0, 0), unit_vector(vec3(0.3, 1, -0.2))})
   for (const point3 x : {point3(0, 0, 0), point3(4, 1, -3), point3(-20, 5, 2)}) {
+    f.set_selection(mode);
     double sum = 0;
     std::vector<double> pmf(f.size());
     for (size_t i = 0; i < f.size(); ++i)
-      sum += pmf[i] = f.select_pmf(static_cast<int>(i), x);
-    CHECK_NEAR(sum, 1.0, 1e-9, "tree pmf sums to 1 at " << x);
+      sum += pmf[i] = f.select_pmf(static_cast<int>(i), x, nrm);
+    // With the receiver bound, a node that reaches above the horizon can
+    // have children that are all below it: sampling that reaches it picks
+    // nothing. Such a sample would have been worth nothing anyway (see the
+    // next test); elsewhere the probabilities sum to exactly 1.
+    const bool can_lose = mode == gaussian_field::selection::tree && nrm.length_squared() > 0;
+    if (can_lose)
+      CHECK(sum <= 1.0 + 1e-9 && sum > 0.0, mode_name << " pmf sums to " << sum << " at " << x);
+    else
+      CHECK_NEAR(sum, 1.0, 1e-9, mode_name << " pmf sums to 1 at " << x << ", n " << nrm);
     std::vector<double> count(f.size(), 0.0);
-    const int n = 400000;
+    const int n = 200000;
+    int failed = 0;
     for (int k = 0; k < n; ++k) {
       double p;
-      const int i = f.select_gaussian(x, random_double(), p);
-      CHECK(i >= 0, "a Gaussian is selected");
-      if (i < 0)
-        return;
+      const int i = f.select_gaussian(x, random_double(), p, nrm);
+      if (i < 0) {
+        ++failed;
+        continue;
+      }
       CHECK_NEAR(p, pmf[static_cast<size_t>(i)], 1e-9 * pmf[static_cast<size_t>(i)], "reported pmf");
       count[static_cast<size_t>(i)] += 1;
       if (tf::current_test_failed())
@@ -659,7 +688,11 @@ TEST(gaussian_light_tree_selection_is_consistent) {
       ++bins;
     }
     const double z = (stat - (bins - 1)) / std::sqrt(2.0 * (bins - 1));
-    CHECK(z < 6.0, "tree selection chi-square z = " << z << " over " << bins << " bins at " << x);
+    CHECK(z < 6.0, mode_name << " selection chi-square z = " << z << " over " << bins << " bins at " << x);
+    // Failed selections happen exactly as often as the missing mass says.
+    const double lost = std::max(0.0, 1.0 - sum);
+    CHECK_NEAR(failed, n * lost, 6.0 * std::sqrt(n * lost * (1 - lost)) + 1.0,
+               mode_name << " failed selections at " << x);
   }
   // Two identical lights, one near x and one far: the near one dominates.
   gaussian_field two;
@@ -705,12 +738,142 @@ TEST(gaussian_light_tree_mis_weights_match_its_sampling) {
     }
   }
   const double expected = rho / PI * E;
-  for (LightStrategy st : kStrategies) {
+  for (auto mode : {gaussian_field::selection::tree_distance, gaussian_field::selection::tree_emitter,
+                    gaussian_field::selection::tree}) {
+    f->set_selection(mode);
+    for (LightStrategy st : kStrategies) {
+      path_tracer_settings ps;
+      ps.max_depth = 1;
+      ps.strategy = st;
+      const th::estimate e = th::estimate_radiance(*w, kDown, ps, 300000);
+      CHECK_NEAR(e.mean.x(), expected, 4.5 * e.std_error.x() + 2e-4 * expected,
+                 "near and far Gaussian, tree mode " << static_cast<int>(mode) << " ["
+                                                    << th::strategy_name(st) << "]");
+    }
+  }
+}
+
+// The receiver bound: below the horizon of an opaque surface nothing can be
+// reflected, so the tree gives zero probability to a Gaussian whose whole
+// support lies below it; one that straddles the horizon keeps a positive
+// probability, and without a normal both do.
+TEST(gaussian_light_tree_receiver_bound_is_conservative) {
+  // Exactly so for 400 Gaussians at tilted normals: zero where the support
+  // box (k s, k = sqrt(2 ln(255 o))) lies below the tangent plane, positive
+  // wherever it reaches above.
+  {
+    seed_thread_rng(77, 1);
+    gaussian_field many;
+    std::vector<std::pair<vec3, vec3>> boxes; // mean, half-extents
+    for (int i = 0; i < 400; ++i) {
+      const vec3 mean(random_double(-4, 4), random_double(-2, 3), random_double(-4, 4));
+      const vec3 s(random_double(0.02, 0.3), random_double(0.02, 0.3), random_double(0.005, 0.3));
+      const double o = random_double(0.3, 0.95);
+      many.add(mean, s, kIdentity, o, constant_sh(color(random_double(0.5, 9), 2, 1)).data(), 0);
+      boxes.emplace_back(mean, std::sqrt(2.0 * std::log(255.0 * o)) * s);
+    }
+    many.build();
+    many.set_selection(gaussian_field::selection::tree);
+    int zero = 0, positive = 0;
+    for (const vec3 n : {unit_vector(vec3(0.3, 1, -0.2)), unit_vector(vec3(-1, 0.4, 0.7)), vec3(0, 1, 0)})
+      for (const point3 x : {point3(0, 0, 0), point3(2, 0.5, -1), point3(-3, 1, 3)}) {
+        double sum = 0;
+        for (int i = 0; i < 400; ++i) {
+          const auto &[m, h] = boxes[static_cast<size_t>(i)];
+          const double top = dot(n, m - x) + std::abs(n.x()) * h.x() + std::abs(n.y()) * h.y() +
+                             std::abs(n.z()) * h.z();
+          const double p = many.select_pmf(i, x, n);
+          sum += p;
+          if (top > 1e-4) {
+            CHECK(p > 0.0, "Gaussian " << i << " reaches above the horizon at " << x << ", n " << n);
+            ++positive;
+          } else if (top < -1e-4) {
+            CHECK(p == 0.0, "Gaussian " << i << " is below the horizon at " << x << ": " << p);
+            ++zero;
+          }
+          if (tf::current_test_failed())
+            return;
+        }
+        CHECK(sum <= 1.0 + 1e-9, "pmf sums to " << sum);
+      }
+    CHECK(zero > 500 && positive > 500, "both cases occur: " << zero << " / " << positive);
+  }
+  gaussian_field f;
+  f.add(vec3(0, -2.0, 0), vec3(0.2, 0.2, 0.2), kIdentity, 0.9, constant_sh(color(5, 5, 5)).data(), 0);
+  f.add(vec3(2.0, 0.05, 0), vec3(0.3, 0.3, 0.3), kIdentity, 0.9, constant_sh(color(5, 5, 5)).data(), 0);
+  f.add(vec3(-1, 1.5, 0.5), vec3(0.2, 0.2, 0.2), kIdentity, 0.9, constant_sh(color(5, 5, 5)).data(), 0);
+  f.build();
+  f.set_selection(gaussian_field::selection::tree);
+  const point3 x(0, 0, 0);
+  const vec3 up(0, 1, 0);
+  CHECK(f.select_pmf(0, x, up) == 0.0, "below the horizon: " << f.select_pmf(0, x, up));
+  CHECK(f.select_pmf(1, x, up) > 0.0, "straddling the horizon keeps a chance");
+  CHECK(f.select_pmf(0, x) > 0.0 && f.select_pmf(1, x) > 0.0, "no normal, no horizon");
+  CHECK_NEAR(f.select_pmf(0, x, up) + f.select_pmf(1, x, up) + f.select_pmf(2, x, up), 1.0, 1e-12,
+             "still a distribution");
+}
+
+// MIS weights at changing shading points. Rays alternate between two floor
+// points, so the hierarchy's per-ray branch memo must not leak from one to
+// the other, and bright Gaussians low over the horizon make the receiver
+// bound matter (it moves probability to the Gaussian overhead), so light sampling
+// and MIS must use the same normal. Each point against its own quadrature.
+TEST(gaussian_light_tree_mis_is_consistent_across_points) {
+  auto f = std::make_shared<gaussian_field>();
+  f->add(vec3(0.3, 2.0, -0.4), vec3(0.08, 0.08, 0.08), kIdentity, 0.9, constant_sh(color(6, 6, 6)).data(), 0);
+  f->add(vec3(5.0, 0.7, 0.5), vec3(0.1, 0.1, 0.1), kIdentity, 0.9, constant_sh(color(60, 60, 60)).data(), 0);
+  f->add(vec3(-4.0, 0.6, 3.0), vec3(0.1, 0.1, 0.1), kIdentity, 0.9, constant_sh(color(60, 60, 60)).data(), 0);
+  f->add(vec3(1.5, 1.2, 2.5), vec3(0.3, 0.05, 0.2), kIdentity, 0.9, constant_sh(color(3, 3, 3)).data(), 0);
+  // Dim ones around them, so the hierarchy has inner nodes (a leaf holds 4).
+  const double ring[8][3] = {{-2, 1.0, -2}, {3, 2.5, -3},   {-1.5, 3.0, 1.0}, {4, 1.5, 4},
+                             {-3, 0.8, -3.5}, {0.5, 0.4, 4.5}, {2.0, 3.5, 0.5},  {-0.5, 1.8, -3.0}};
+  for (const auto &p : ring)
+    f->add(vec3(p[0], p[1], p[2]), vec3(0.15, 0.15, 0.15), kIdentity, 0.9, constant_sh(color(2, 2, 2)).data(), 0);
+  f->build();
+  f->set_selection(gaussian_field::selection::tree);
+  const double rho = 0.5;
+  auto w = th::make_world(1);
+  w->objects.push_back(floor_quad(std::make_shared<lambertian>(color(rho, rho, rho))));
+  w->field = f;
+  w->prepare();
+  const point3 xs[2] = {point3(0, 0, 0), point3(2.5, 0, -1.5)};
+  CHECK(f->select_pmf(0, xs[0], vec3(0, 1, 0)) > 2.0 * f->select_pmf(0, xs[0]),
+        "the horizon bound matters here");
+  double expected[2] = {0, 0};
+  for (int s = 0; s < 2; ++s) {
+    const int nt = 1500, np = 3000;
+    for (int it = 0; it < nt; ++it) {
+      const double th = (PI / 2) * (it + 0.5) / nt;
+      const double weight = std::cos(th) * std::sin(th) * (PI / 2 / nt) * (2 * PI / np);
+      for (int ip = 0; ip < np; ++ip) {
+        const double ph = 2 * PI * (ip + 0.5) / np;
+        color L;
+        double T;
+        f->trace(ray(xs[s], vec3(std::sin(th) * std::cos(ph), std::cos(th), std::sin(th) * std::sin(ph))),
+                 0.0, INF, L, T);
+        expected[s] += weight * L.x();
+      }
+    }
+    expected[s] *= rho / PI;
+  }
+  for (LightStrategy st : {LightStrategy::MIS, LightStrategy::NEE}) {
     path_tracer_settings ps;
     ps.max_depth = 1;
     ps.strategy = st;
-    const th::estimate e = th::estimate_radiance(*w, kDown, ps, 300000);
-    CHECK_NEAR(e.mean.x(), expected, 4.5 * e.std_error.x() + 2e-4 * expected,
-               "near and far Gaussian, tree [" << th::strategy_name(st) << "]");
+    double mean[2] = {0, 0}, m2[2] = {0, 0};
+    const int n = 200000;
+    for (int i = 0; i < n; ++i)
+      for (int s = 0; s < 2; ++s) { // alternate between the points
+        seed_thread_rng(static_cast<uint64_t>(i), static_cast<uint64_t>(s), 9);
+        const double c = trace_path(ray(xs[s] + vec3(0, 0.01, 0), vec3(0, -1, 0)), *w, ps).x();
+        const double delta = c - mean[s];
+        mean[s] += delta / (i + 1);
+        m2[s] += delta * (c - mean[s]);
+      }
+    for (int s = 0; s < 2; ++s) {
+      const double se = std::sqrt(m2[s] / (n - 1) / n);
+      CHECK_NEAR(mean[s], expected[s], 4.5 * se + 2e-4 * expected[s],
+                 "point " << s << " [" << th::strategy_name(st) << "]");
+    }
   }
 }

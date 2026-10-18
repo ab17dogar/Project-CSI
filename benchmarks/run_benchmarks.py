@@ -31,9 +31,16 @@ METHODS = {
     "bsdf": ["--integrator", "bsdf"],
     "nee": ["--integrator", "nee"],
     # Gaussian fields: light selection by the light hierarchy instead of
-    # power (no effect on scenes without a field).
+    # power (no effect on scenes without a field). "tree" uses all of its
+    # bounds; the other two are the ablation: distance only (the hierarchy
+    # of stage 2b) and distance with the emitter's orientation and SH, but
+    # no receiver bound.
     "mis_tree": ["--integrator", "mis", "--field-sampler", "tree"],
     "nee_tree": ["--integrator", "nee", "--field-sampler", "tree"],
+    "mis_tree_distance": ["--integrator", "mis", "--field-sampler", "tree-distance"],
+    "nee_tree_distance": ["--integrator", "nee", "--field-sampler", "tree-distance"],
+    "mis_tree_emitter": ["--integrator", "mis", "--field-sampler", "tree-emitter"],
+    "nee_tree_emitter": ["--integrator", "nee", "--field-sampler", "tree-emitter"],
 }
 
 

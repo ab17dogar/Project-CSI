@@ -27,7 +27,7 @@ A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built fr
 - Intel OIDN denoiser integration (optional)
 
 ### Verification
-- **47 correctness tests** (`ctest`): χ² goodness-of-fit for every BSDF sampler, sample/pdf consistency for every light, analytic irradiance from rectangle, triangle, sphere, point, sun, sky and environment lights under each strategy, a white furnace test, BVH vs. brute force, Gaussian fields against closed forms and brute force, determinism, and a statistical regression test against stored references
+- **49 correctness tests** (`ctest`): χ² goodness-of-fit for every BSDF sampler, sample/pdf consistency for every light, analytic irradiance from rectangle, triangle, sphere, point, sun, sky and environment lights under each strategy, a white furnace test, BVH vs. brute force, Gaussian fields against closed forms and brute force, determinism, and a statistical regression test against stored references
 - Runs in CI on Linux and macOS, and under AddressSanitizer + UBSan
 
 ### Measurement

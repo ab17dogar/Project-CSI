@@ -13,7 +13,7 @@ REFS_DIR = BENCH / "references"
 RESULTS_DIR = BENCH / "results"
 
 SCENES = ["cornell_box", "cornell_glossy", "veach_mis", "glass_caustic",
-          "env_objects", "sun_sky_bunny", "gaussian_lights"]
+          "env_objects", "sun_sky_bunny", "gaussian_lights", "gaussian_spots"]
 
 # References use their own seed range. A test render that shares sample
 # streams with its reference is correlated with it, and its measured error

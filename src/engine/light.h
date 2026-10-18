@@ -51,6 +51,14 @@ public:
   virtual bool sample_li(const point3 &ref, double u1, double u2,
                          light_sample &out) const = 0;
 
+  // As sample_li, for a receiver with normal n (zero: none, or one that
+  // transmits). Lights that can use it override this.
+  virtual bool sample_li_at(const point3 &ref, const vec3 &n, double u1, double u2,
+                            light_sample &out) const {
+    (void)n;
+    return sample_li(ref, u1, u2, out);
+  }
+
   // Solid-angle density that sample_li(ref) assigns to direction wi. For area
   // lights `hit` is where ray(ref, wi) meets this light; infinite lights
   // ignore it. Delta lights return 0 (they cannot be hit).

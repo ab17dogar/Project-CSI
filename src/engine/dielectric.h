@@ -39,6 +39,7 @@ public:
       : ir(index_of_refraction), tint(glass_tint) {}
 
   bool has_smooth_lobes() const override { return false; }
+  bool transmits() const override { return true; }
 
   color eval(const hit_record &, const vec3 &, const vec3 &) const override {
     return color(0, 0, 0);

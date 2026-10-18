@@ -87,6 +87,36 @@ thread_local std::vector<int> t_stack;
 
 } // namespace
 
+void gaussian_field::sh_basis(const vec3 &dir, double Y[16]) {
+  const double x = dir.x(), y = dir.y(), z = dir.z();
+  const double xx = x * x, yy = y * y, zz = z * z, xy = x * y, yz = y * z, xz = x * z;
+  Y[0] = kC0;
+  Y[1] = -kC1 * y;
+  Y[2] = kC1 * z;
+  Y[3] = -kC1 * x;
+  Y[4] = kC2[0] * xy;
+  Y[5] = kC2[1] * yz;
+  Y[6] = kC2[2] * (2 * zz - xx - yy);
+  Y[7] = kC2[3] * xz;
+  Y[8] = kC2[4] * (xx - yy);
+  Y[9] = kC3[0] * y * (3 * xx - yy);
+  Y[10] = kC3[1] * xy * z;
+  Y[11] = kC3[2] * y * (4 * zz - xx - yy);
+  Y[12] = kC3[3] * z * (2 * zz - 3 * xx - 3 * yy);
+  Y[13] = kC3[4] * x * (4 * zz - xx - yy);
+  Y[14] = kC3[5] * z * (xx - yy);
+  Y[15] = kC3[6] * x * (xx - 3 * yy);
+}
+
+bool gaussian_field::parse_selection(const std::string &name, selection &out) {
+  if (name == "power") out = selection::power;
+  else if (name == "tree") out = selection::tree;
+  else if (name == "tree-distance") out = selection::tree_distance;
+  else if (name == "tree-emitter") out = selection::tree_emitter;
+  else return false;
+  return true;
+}
+
 color gaussian_field::eval_sh(int degree, const float *sh, const vec3 &dir_in) {
   const vec3 d = unit_vector(dir_in);
   const double x = d.x(), y = d.y(), z = d.z();
@@ -356,6 +386,78 @@ void gaussian_field::build() {
           node_power_[static_cast<size_t>(k + 1)] + node_power_[static_cast<size_t>(n.first)];
     }
   }
+
+  // Orientation and SH aggregates (stage 2c), bottom-up like the power.
+  const size_t N = g_.size(), K = nodes_.size();
+  g_lum_dc_.assign(N, 0.0f);
+  g_det_.assign(N, 0.0f);
+  node_w_.assign(K, 0.0f);
+  node_q_.assign(K * 6, 0.0f);
+  node_shw_.assign(K, 0.0f);
+  node_sh_.assign(degree_ > 0 ? K * 16 : 0, 0.0f);
+  const int nb = (degree_ + 1) * (degree_ + 1);
+  g_lum_sh_.assign(degree_ > 0 ? N * static_cast<size_t>(nb) : 0, 0.0f);
+  std::vector<double> gq(N * 6), gsh(degree_ > 0 ? N * 16 : 0), gshw(N);
+  for (size_t i = 0; i < N; ++i) {
+    const gaussian &g = g_[i];
+    const float *M = g.whiten;
+    const double det = std::abs(M[0] * (M[4] * M[8] - M[5] * M[7]) - M[1] * (M[3] * M[8] - M[5] * M[6]) +
+                                M[2] * (M[3] * M[7] - M[4] * M[6]));
+    color dc;
+    for (int c = 0; c < 3; ++c)
+      dc[c] = std::max(0.0, kC0 * g.sh[c] + 0.5);
+    const double lum = luminance(dc), w = g.opacity * lum;
+    g_lum_dc_[i] = static_cast<float>(lum);
+    g_det_[i] = static_cast<float>(det);
+    const double s = (2.0 * PI / det) * (2.0 * PI / det) * w;
+    const int idx[6][2] = {{0, 0}, {0, 1}, {0, 2}, {1, 1}, {1, 2}, {2, 2}};
+    for (int e = 0; e < 6; ++e) {
+      double mtm = 0.0; // (M^T M)_ab = sum_r M_ra M_rb
+      for (int r = 0; r < 3; ++r)
+        mtm += static_cast<double>(M[r * 3 + idx[e][0]]) * M[r * 3 + idx[e][1]];
+      gq[i * 6 + e] = s * mtm;
+    }
+    // SH weights: opacity times mean projected area, Phi_i / (4 pi L_i).
+    gshw[i] = lum > 0.0 ? power[i] / (4.0 * PI * lum) : 0.0;
+    if (degree_ > 0)
+      for (int k = 0; k < 16; ++k) {
+        const double l = luminance(color(g.sh[k * 3], g.sh[k * 3 + 1], g.sh[k * 3 + 2]));
+        gsh[i * 16 + k] = gshw[i] * l;
+        if (k < nb)
+          g_lum_sh_[i * static_cast<size_t>(nb) + static_cast<size_t>(k)] = static_cast<float>(l);
+      }
+  }
+  for (int k = static_cast<int>(K) - 1; k >= 0; --k) {
+    const node &n = nodes_[static_cast<size_t>(k)];
+    const size_t kk = static_cast<size_t>(k);
+    auto accumulate = [&](auto &&add) {
+      if (n.count > 0) {
+        for (int i = n.first; i < n.first + n.count; ++i)
+          add(static_cast<size_t>(order_[static_cast<size_t>(i)]), true);
+      } else {
+        add(static_cast<size_t>(k + 1), false);
+        add(static_cast<size_t>(n.first), false);
+      }
+    };
+    double W = 0, shw = 0, q[6] = {0, 0, 0, 0, 0, 0}, sh[16] = {};
+    accumulate([&](size_t j, bool gaussian_index) {
+      if (gaussian_index) {
+        W += g_[j].opacity * g_lum_dc_[j];
+        shw += gshw[j];
+        for (int e = 0; e < 6; ++e) q[e] += gq[j * 6 + e];
+        if (degree_ > 0) for (int c = 0; c < 16; ++c) sh[c] += gsh[j * 16 + c];
+      } else {
+        W += node_w_[j];
+        shw += node_shw_[j];
+        for (int e = 0; e < 6; ++e) q[e] += node_q_[j * 6 + e];
+        if (degree_ > 0) for (int c = 0; c < 16; ++c) sh[c] += node_sh_[j * 16 + c];
+      }
+    });
+    node_w_[kk] = static_cast<float>(W);
+    node_shw_[kk] = static_cast<float>(shw);
+    for (int e = 0; e < 6; ++e) node_q_[kk * 6 + e] = static_cast<float>(q[e]);
+    if (degree_ > 0) for (int c = 0; c < 16; ++c) node_sh_[kk * 16 + c] = static_cast<float>(sh[c]);
+  }
 }
 
 point3 gaussian_field::point_to_local(const point3 &x) const {
@@ -365,33 +467,175 @@ point3 gaussian_field::point_to_local(const point3 &x) const {
                 rot_[6] * a[0] + rot_[7] * a[1] + rot_[8] * a[2]);
 }
 
-// Power over squared distance from x to the node's centre, the distance
-// clamped below by the node's half-diagonal so that nodes around x are not
-// overweighted. A heuristic: it only has to be the same in select_local and
-// select_pmf_local.
-double gaussian_field::node_importance(int k, const point3 &x) const {
-  const node &n = nodes_[static_cast<size_t>(k)];
-  double d2 = 0.0, r2 = 0.0;
-  for (int a = 0; a < 3; ++a) {
-    const double c = 0.5 * (n.lo[a] + n.hi[a]), h = 0.5 * (n.hi[a] - n.lo[a]);
-    d2 += (x[a] - c) * (x[a] - c);
-    r2 += h * h;
-  }
-  return node_power_[static_cast<size_t>(k)] / std::max(d2, r2);
+vec3 gaussian_field::normal_to_local(const vec3 &n) const {
+  return vec3(rot_[0] * n[0] + rot_[1] * n[1] + rot_[2] * n[2],
+              rot_[3] * n[0] + rot_[4] * n[1] + rot_[5] * n[2],
+              rot_[6] * n[0] + rot_[7] * n[1] + rot_[8] * n[2]);
 }
 
-double gaussian_field::leaf_weight(int g, const point3 &x) const {
-  double d2 = 0.0, r2 = 0.0;
-  for (int a = 0; a < 3; ++a) {
-    const double m = g_[static_cast<size_t>(g)].mean[a];
-    const double h = 0.5 * (box_hi_[static_cast<size_t>(g) * 3 + a] - box_lo_[static_cast<size_t>(g) * 3 + a]);
-    d2 += (x[a] - m) * (x[a] - m);
-    r2 += h * h;
-  }
-  return g_power_[static_cast<size_t>(g)] / std::max(d2, r2);
+namespace {
+
+// Largest cos(angle to n) over a box (centre c, half-extents h) seen from
+// x: 0 if the whole box lies below the tangent plane, else the bound of its
+// bounding sphere, cos(max(0, theta_c - theta_b)), theta_b the sphere's
+// angular radius. 1 if n is zero (no horizon) or x is inside the sphere.
+// The plane test is exact for axis-aligned normals; the sphere alone is not,
+// and a node whose sphere crosses the plane while its children's boxes lie
+// below it would waste its samples.
+// With dn = n.(c - x) and d^2 = |c - x|^2: cos_c = dn / d, cos_b =
+// sqrt(d^2 - r^2) / d, so cos_c >= cos_b iff dn >= 0 and dn^2 >= d^2 - r^2,
+// and cos_c cos_b + sin_c sin_b = (dn sqrt(d^2 - r^2) + sqrt((d^2 - dn^2) r^2)) / d^2.
+inline double cosine_bound(const vec3 &n, const point3 &x, const point3 &c, const vec3 &h) {
+  if (n.x() == 0.0 && n.y() == 0.0 && n.z() == 0.0)
+    return 1.0;
+  const vec3 v = c - x;
+  const double dn = dot(n, v);
+  if (dn + std::abs(n.x()) * h.x() + std::abs(n.y()) * h.y() + std::abs(n.z()) * h.z() <= 0.0)
+    return 0.0;
+  const double r2 = h.length_squared();
+  const double d2 = v.length_squared();
+  if (d2 <= r2 || (dn >= 0.0 && dn * dn >= d2 - r2))
+    return 1.0;
+  const double b = dn * std::sqrt(d2 - r2) + std::sqrt(std::max(0.0, d2 - dn * dn) * r2);
+  return std::max(0.0, b / d2);
 }
 
-int gaussian_field::select_local(const point3 &x, double u, double &pmf) const {
+// The SH basis up to the given degree (Y[k] for k < (degree + 1)^2).
+inline void sh_basis_to(int degree, const vec3 &dir, double Y[16]) {
+  if (degree >= 2) {
+    gaussian_field::sh_basis(dir, Y);
+    return;
+  }
+  Y[0] = kC0;
+  if (degree == 1) {
+    Y[1] = -kC1 * dir.y();
+    Y[2] = kC1 * dir.z();
+    Y[3] = -kC1 * dir.x();
+  }
+}
+
+// Branch probabilities of the light hierarchy, reused along one ray.
+struct branch_memo {
+  const void *owner = nullptr;
+  uint32_t gen = 0;
+  std::vector<uint32_t> stamp;
+  std::vector<double> prob;
+};
+thread_local branch_memo t_memo;
+
+} // namespace
+
+void gaussian_field::memo_begin() const {
+  if (t_memo.owner != this || t_memo.stamp.size() != nodes_.size()) {
+    t_memo.owner = this;
+    t_memo.stamp.assign(nodes_.size(), 0);
+    t_memo.prob.assign(nodes_.size(), 0.0);
+    t_memo.gen = 0;
+  }
+  if (++t_memo.gen == 0) { // wrapped: clear stamps
+    std::fill(t_memo.stamp.begin(), t_memo.stamp.end(), 0);
+    t_memo.gen = 1;
+  }
+}
+
+// A heuristic estimate of node k's contribution at x; it only has to be the
+// same in select_local and select_pmf_local. Distance: clamped below by the
+// node's half-diagonal. Emitter (tree_emitter, tree): far nodes (beyond twice
+// their half-diagonal) by the Cauchy-Schwarz bound sqrt(W w^T Q w) on their
+// Gaussians' projected areas toward x, times their power-weighted SH
+// radiance toward x over the view-independent one; near nodes by their
+// direction-averaged emission Phi / 4 pi. Receiver (tree): the cosine bound.
+double gaussian_field::node_importance(int k, const point3 &x, const vec3 &n) const {
+  const node &nd = nodes_[static_cast<size_t>(k)];
+  const size_t kk = static_cast<size_t>(k);
+  point3 c;
+  vec3 h;
+  for (int a = 0; a < 3; ++a) {
+    c[a] = 0.5 * (nd.lo[a] + nd.hi[a]);
+    h[a] = 0.5 * (nd.hi[a] - nd.lo[a]);
+  }
+  const double r2 = h.length_squared();
+  const vec3 v = c - x;
+  const double d2 = v.length_squared();
+  if (selection_ == selection::tree_distance)
+    return node_power_[kk] / std::max(d2, r2);
+  double e = node_power_[kk] / (4.0 * PI);
+  if (d2 > 4.0 * r2) {
+    const vec3 w = v / std::sqrt(d2);
+    const float *q = &node_q_[kk * 6];
+    const double quad = q[0] * w.x() * w.x() + q[3] * w.y() * w.y() + q[5] * w.z() * w.z() +
+                        2.0 * (q[1] * w.x() * w.y() + q[2] * w.x() * w.z() + q[4] * w.y() * w.z());
+    e = std::sqrt(std::max(0.0, node_w_[kk] * quad));
+    if (degree_ > 0 && node_shw_[kk] > 0.0f) {
+      double Y[16];
+      sh_basis_to(degree_, w, Y);
+      const float *sh = &node_sh_[kk * 16];
+      const int nb = (degree_ + 1) * (degree_ + 1);
+      double dir = 0.0;
+      for (int b = 0; b < nb; ++b)
+        dir += Y[b] * sh[b];
+      const double base = kC0 * sh[0] / node_shw_[kk] + 0.5;
+      const double toward = dir / node_shw_[kk] + 0.5;
+      if (base > 0.0)
+        e *= std::max(toward, 0.1 * base) / base;
+    }
+  }
+  double imp = e / std::max(d2, r2);
+  if (selection_ == selection::tree)
+    imp *= cosine_bound(n, x, c, h);
+  return imp;
+}
+
+// Gaussian g's estimated contribution at x: with the emitter terms, its
+// exact projected area 2 pi |M w| / |det M| and the luminance of its SH
+// radiance toward x (linear in the SH, so before the per-channel clamp;
+// floored at a tenth of the view-independent one, so view-dependent
+// Gaussians are not ruled out by one direction), over the clamped squared
+// distance; inside its support, its direction-averaged emission.
+double gaussian_field::leaf_weight(int gi, const point3 &x, const vec3 &n) const {
+  const size_t g = static_cast<size_t>(gi);
+  const gaussian &G = g_[g];
+  point3 m;
+  vec3 h;
+  for (int a = 0; a < 3; ++a) {
+    m[a] = G.mean[a];
+    h[a] = 0.5 * (box_hi_[g * 3 + a] - box_lo_[g * 3 + a]);
+  }
+  const double r2 = h.length_squared();
+  const vec3 v = m - x;
+  const double d2 = v.length_squared();
+  if (selection_ == selection::tree_distance)
+    return g_power_[g] / std::max(d2, r2);
+  double e = g_power_[g] / (4.0 * PI);
+  if (d2 > r2) {
+    const vec3 w = v / std::sqrt(d2);
+    const float *M = G.whiten;
+    double mw2 = 0.0;
+    for (int r = 0; r < 3; ++r) {
+      const double row = M[r * 3] * w.x() + M[r * 3 + 1] * w.y() + M[r * 3 + 2] * w.z();
+      mw2 += row * row;
+    }
+    const double area = 2.0 * PI * std::sqrt(mw2) / g_det_[g];
+    const double lum_dc = g_lum_dc_[g];
+    double lum = lum_dc;
+    if (degree_ > 0) {
+      double Y[16];
+      sh_basis_to(degree_, w, Y);
+      const int nb = (degree_ + 1) * (degree_ + 1);
+      const float *ls = &g_lum_sh_[g * static_cast<size_t>(nb)];
+      lum = 0.5;
+      for (int b = 0; b < nb; ++b)
+        lum += Y[b] * ls[b];
+    }
+    e = G.opacity * area * std::max(lum, 0.1 * lum_dc);
+  }
+  double imp = e / std::max(d2, r2);
+  if (selection_ == selection::tree)
+    imp *= cosine_bound(n, x, m, h);
+  return imp;
+}
+
+int gaussian_field::select_local(const point3 &x, const vec3 &n, double u, double &pmf) const {
   pmf = 0.0;
   if (g_.empty() || !(total_power_ > 0.0))
     return -1;
@@ -403,7 +647,7 @@ int gaussian_field::select_local(const point3 &x, double u, double &pmf) const {
   double p = 1.0;
   while (nodes_[static_cast<size_t>(k)].count == 0) {
     const int left = k + 1, right = nodes_[static_cast<size_t>(k)].first;
-    const double il = node_importance(left, x), ir = node_importance(right, x);
+    const double il = node_importance(left, x, n), ir = node_importance(right, x, n);
     if (!(il + ir > 0.0))
       return -1;
     const double pl = il / (il + ir);
@@ -419,9 +663,16 @@ int gaussian_field::select_local(const point3 &x, double u, double &pmf) const {
     u = std::min(u, ONE_MINUS_EPSILON);
   }
   const node &leaf = nodes_[static_cast<size_t>(k)];
+  // Leaves hold up to 4 Gaussians unless their centroids coincide.
+  double weights[16];
+  const bool cached = leaf.count <= 16;
   double total = 0.0;
-  for (int i = leaf.first; i < leaf.first + leaf.count; ++i)
-    total += leaf_weight(order_[static_cast<size_t>(i)], x);
+  for (int i = leaf.first; i < leaf.first + leaf.count; ++i) {
+    const double w = leaf_weight(order_[static_cast<size_t>(i)], x, n);
+    if (cached)
+      weights[i - leaf.first] = w;
+    total += w;
+  }
   if (!(total > 0.0))
     return -1;
   // The last Gaussian with positive weight absorbs round-off in u.
@@ -429,7 +680,7 @@ int gaussian_field::select_local(const point3 &x, double u, double &pmf) const {
   int chosen = -1;
   for (int i = leaf.first; i < leaf.first + leaf.count; ++i) {
     const int g = order_[static_cast<size_t>(i)];
-    const double w = leaf_weight(g, x);
+    const double w = cached ? weights[i - leaf.first] : leaf_weight(g, x, n);
     if (w <= 0.0)
       continue;
     chosen = g;
@@ -442,37 +693,53 @@ int gaussian_field::select_local(const point3 &x, double u, double &pmf) const {
   return chosen;
 }
 
-double gaussian_field::select_pmf_local(int i, const point3 &x) const {
+double gaussian_field::select_pmf_local(int i, const point3 &x, const vec3 &n, bool memo) const {
   if (i < 0 || static_cast<size_t>(i) >= g_.size() || !(total_power_ > 0.0))
     return 0.0;
   if (selection_ == selection::power)
     return select_.discrete_pmf(static_cast<size_t>(i));
   int k = leaf_of_[static_cast<size_t>(i)];
   const node &leaf = nodes_[static_cast<size_t>(k)];
-  double total = 0.0;
-  for (int j = leaf.first; j < leaf.first + leaf.count; ++j)
-    total += leaf_weight(order_[static_cast<size_t>(j)], x);
+  double total = 0.0, own = 0.0;
+  for (int j = leaf.first; j < leaf.first + leaf.count; ++j) {
+    const int g = order_[static_cast<size_t>(j)];
+    const double w = leaf_weight(g, x, n);
+    total += w;
+    if (g == i)
+      own = w;
+  }
   if (!(total > 0.0))
     return 0.0;
-  double p = leaf_weight(i, x) / total;
+  double p = own / total;
   while (parent_[static_cast<size_t>(k)] >= 0) {
-    const int par = parent_[static_cast<size_t>(k)];
-    const int left = par + 1, right = nodes_[static_cast<size_t>(par)].first;
-    const double il = node_importance(left, x), ir = node_importance(right, x);
-    if (!(il + ir > 0.0))
+    const size_t kk = static_cast<size_t>(k);
+    double branch;
+    if (memo && t_memo.stamp[kk] == t_memo.gen) {
+      branch = t_memo.prob[kk];
+    } else {
+      const int par = parent_[kk];
+      const int left = par + 1, right = nodes_[static_cast<size_t>(par)].first;
+      const double il = node_importance(left, x, n), ir = node_importance(right, x, n);
+      branch = il + ir > 0.0 ? (k == left ? il : ir) / (il + ir) : 0.0;
+      if (memo) {
+        t_memo.stamp[kk] = t_memo.gen;
+        t_memo.prob[kk] = branch;
+      }
+    }
+    if (branch == 0.0)
       return 0.0;
-    p *= (k == left ? il : ir) / (il + ir);
-    k = par;
+    p *= branch;
+    k = parent_[kk];
   }
   return p;
 }
 
-int gaussian_field::select_gaussian(const point3 &x, double u, double &pmf) const {
-  return select_local(point_to_local(x), u, pmf);
+int gaussian_field::select_gaussian(const point3 &x, double u, double &pmf, const vec3 &n) const {
+  return select_local(point_to_local(x), normal_to_local(n), u, pmf);
 }
 
-double gaussian_field::select_pmf(int i, const point3 &x) const {
-  return select_pmf_local(i, point_to_local(x));
+double gaussian_field::select_pmf(int i, const point3 &x, const vec3 &n) const {
+  return select_pmf_local(i, point_to_local(x), normal_to_local(n));
 }
 
 double gaussian_field::direction_pdf_local(const gaussian &g, const point3 &o,
@@ -507,30 +774,30 @@ double gaussian_field::direction_pdf_local(const gaussian &g, const point3 &o,
   return p > 0.0 ? p : 0.0; // round-off when the Gaussian is far behind
 }
 
-double gaussian_field::emission_pdf(int i, const point3 &x, const vec3 &w) const {
+double gaussian_field::emission_pdf(int i, const point3 &x, const vec3 &w, const vec3 &n) const {
   if (i < 0 || static_cast<size_t>(i) >= g_.size())
     return 0.0;
   point3 o;
   vec3 d;
   to_local(ray(x, w), o, d);
-  return select_pmf_local(i, o) *
+  return select_pmf_local(i, o, normal_to_local(n)) *
          direction_pdf_local(g_[static_cast<size_t>(i)], o, unit_vector(d));
 }
 
-bool gaussian_field::sample_emission(const point3 &x, double u_select, const double u[4],
-                                     light_sample &out) const {
+bool gaussian_field::sample_emission(const point3 &x, const vec3 &n, double u_select,
+                                     const double u[4], light_sample &out) const {
   if (g_.empty() || !(total_power_ > 0.0))
     return false;
   double pmf = 0.0;
-  const int selected = select_local(point_to_local(x), u_select, pmf);
+  const int selected = select_local(point_to_local(x), normal_to_local(n), u_select, pmf);
   if (selected < 0 || !(pmf > 0.0))
     return false;
   const size_t i = static_cast<size_t>(selected);
   const gaussian &g = g_[i];
-  // Three standard normals (Box-Muller), then y = mu + M^-1 n.
+  // Three standard normals z (Box-Muller), then y = mu + M^-1 z.
   const double r0 = std::sqrt(-2.0 * std::log(1.0 - u[0])), a0 = 2.0 * PI * u[1];
   const double r1 = std::sqrt(-2.0 * std::log(1.0 - u[2])), a1 = 2.0 * PI * u[3];
-  const double n[3] = {r0 * std::cos(a0), r0 * std::sin(a0), r1 * std::cos(a1)};
+  const double z[3] = {r0 * std::cos(a0), r0 * std::sin(a0), r1 * std::cos(a1)};
   double M[9];
   for (int k = 0; k < 9; ++k)
     M[k] = g.whiten[k];
@@ -546,7 +813,7 @@ bool gaussian_field::sample_emission(const point3 &x, double u_select, const dou
                          (M[0] * M[4] - M[1] * M[3]) / det};
   double yl[3];
   for (int r = 0; r < 3; ++r)
-    yl[r] = g.mean[r] + inv[r * 3] * n[0] + inv[r * 3 + 1] * n[1] + inv[r * 3 + 2] * n[2];
+    yl[r] = g.mean[r] + inv[r * 3] * z[0] + inv[r * 3 + 1] * z[1] + inv[r * 3 + 2] * z[2];
   // Local -> world: position + scale * R y, with R = rot_^T.
   point3 y;
   for (int r = 0; r < 3; ++r)
@@ -591,9 +858,14 @@ bool gaussian_field::sample_emission(const point3 &x, double u_select, const dou
 
 bool gaussian_field_light::sample_li(const point3 &ref, double u1, double u2,
                                      light_sample &out) const {
+  return sample_li_at(ref, vec3(0, 0, 0), u1, u2, out);
+}
+
+bool gaussian_field_light::sample_li_at(const point3 &ref, const vec3 &n, double u1, double u2,
+                                        light_sample &out) const {
   // Selection uses u1; the 3D point needs four more uniforms.
   const double u[4] = {u2, random_double(), random_double(), random_double()};
-  return field_->sample_emission(ref, u1, u, out);
+  return field_->sample_emission(ref, n, u1, u, out);
 }
 
 int gaussian_field::build_node(int first, int count, int depth) {
@@ -704,11 +976,14 @@ void gaussian_field::trace(const ray &r, double t_min, double t_max, color &radi
   });
   // MIS: light densities are measured from the shading point.
   point3 mis_o;
-  vec3 mis_w;
+  vec3 mis_w, mis_n;
   if (mis) {
     vec3 unused;
     to_local(ray(mis->origin, r.direction()), mis_o, unused);
     mis_w = unit_vector(d);
+    mis_n = normal_to_local(mis->normal);
+    if (selection_ != selection::power && !hits.empty())
+      memo_begin();
   }
   radiance = color(0, 0, 0);
   double T = 1.0;
@@ -716,7 +991,7 @@ void gaussian_field::trace(const ray &r, double t_min, double t_max, color &radi
     const gaussian &g = g_[static_cast<size_t>(h.index)];
     double w = 1.0;
     if (mis) {
-      const double light_pdf = mis->light_pmf * select_pmf_local(h.index, mis_o) *
+      const double light_pdf = mis->light_pmf * select_pmf_local(h.index, mis_o, mis_n, true) *
                                direction_pdf_local(g, mis_o, mis_w);
       if (mis->nee_only)
         w = light_pdf > 0.0 ? 0.0 : 1.0;

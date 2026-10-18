@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Convergence plots and a summary table for a benchmark run.
 
-    python3 benchmarks/plot_convergence.py benchmarks/results/<run>
+    python3 benchmarks/plot_convergence.py benchmarks/results/<run> [--methods m1 m2 ...]
 
 Writes into <run>/plots/:
   convergence_relmse.png / .pdf   relMSE vs render time, one panel per scene
   convergence_flip.png   / .pdf   HDR-FLIP vs render time
   summary.md                      final errors, error ratio vs MIS, throughput
+
+--methods limits the figures to some methods; the table keeps all of them.
 
 relMSE is the reference-noise-corrected value. Points where the correction
 reaches zero or below (the error is under the reference's own noise floor) are
@@ -28,8 +30,23 @@ METHOD_STYLE = {
     "mis": {"color": "#2a78d6", "marker": "o", "label": "MIS"},
     "bsdf": {"color": "#eb6834", "marker": "s", "label": "BSDF sampling"},
     "nee": {"color": "#1baf7a", "marker": "^", "label": "Light sampling (NEE)"},
-    "mis_tree": {"color": "#eda100", "marker": "D", "label": "MIS, light tree"},
-    "nee_tree": {"color": "#e87ba4", "marker": "v", "label": "Light sampling, light tree"},
+    # The light tree and its ablation (distance only; distance and emitter).
+    # The two ablation variants keep one hue across strategies, so plot one
+    # strategy at a time (--methods): with the light-sampling methods they
+    # put two greens side by side.
+    "mis_tree_distance": {"color": "#e34948", "marker": "P",
+                         "label": "MIS, tree (distance)", "short": "tree (distance)"},
+    "mis_tree_emitter": {"color": "#008300", "marker": "X",
+                        "label": "MIS, tree (emitter)", "short": "tree (emitter)"},
+    "mis_tree": {"color": "#eda100", "marker": "D",
+                "label": "MIS, tree (all bounds)", "short": "tree (all)"},
+    "nee_tree_distance": {"color": "#e34948", "marker": "P",
+                         "label": "Light sampling, tree (distance)",
+                         "short": "LS, tree (distance)"},
+    "nee_tree_emitter": {"color": "#008300", "marker": "X",
+                        "label": "Light sampling, tree (emitter)", "short": "LS, tree (emitter)"},
+    "nee_tree": {"color": "#e87ba4", "marker": "v",
+                "label": "Light sampling, tree (all bounds)", "short": "LS, tree (all)"},
 }
 FALLBACK_COLORS = ["#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 SURFACE, INK, INK_2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
@@ -110,7 +127,7 @@ def plot_metric(plt, data, key, ylabel, out_base, title, slope_guide=False):
             ax.plot(t, e, color=st["color"], lw=1.6, marker=st["marker"], ms=4.5,
                     mec=SURFACE, mew=1.2, markevery=max(1, len(t) // 8),
                     label=st["label"], zorder=4 if method == "mis" else 3)
-            ends.append((e[-1], t[-1], st["label"]))
+            ends.append((e[-1], t[-1], st.get("short", st["label"].split(" (")[0])))
         # Monte Carlo reference slope: a variance-like metric (MSE, relMSE)
         # falls as 1/time. FLIP does not, so it gets no guide. Drawn below
         # every curve so it never hides one.
@@ -126,9 +143,8 @@ def plot_metric(plt, data, key, ylabel, out_base, title, slope_guide=False):
         # reads as agreement. Other near-collisions keep the MIS label and leave
         # the rest to the legend.
         groups = []
-        for e_end, t_end, label in sorted(ends):
+        for e_end, t_end, name in sorted(ends):
             ly = math.log10(e_end)
-            name = label.split(" (")[0]
             if groups and abs(ly - groups[-1]["ly"]) <= 0.04:
                 groups[-1]["labels"].append(name)
             else:
@@ -199,6 +215,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir", type=Path)
+    ap.add_argument("--methods", nargs="*", help="methods to plot (default: all)")
     args = ap.parse_args()
     try:
         import matplotlib
@@ -212,9 +229,12 @@ def main():
         sys.exit(f"no logs found under {args.run_dir}")
     out = args.run_dir / "plots"
     out.mkdir(exist_ok=True)
-    plot_metric(plt, data, "relmse_corrected", "relMSE", out / "convergence_relmse",
+    shown = data
+    if args.methods:
+        shown = {s: {m: r for m, r in ms.items() if m in args.methods} for s, ms in data.items()}
+    plot_metric(plt, shown, "relmse_corrected", "relMSE", out / "convergence_relmse",
                 "Equal-time convergence: relative MSE (lower is better)", slope_guide=True)
-    plot_metric(plt, data, "flip", "HDR-FLIP", out / "convergence_flip",
+    plot_metric(plt, shown, "flip", "HDR-FLIP", out / "convergence_flip",
                 "Equal-time convergence: HDR-FLIP (lower is better)")
     write_summary(data, out / "summary.md")
     print(f"wrote {out}/convergence_relmse.png, convergence_flip.png, summary.md")

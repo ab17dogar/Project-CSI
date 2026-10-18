@@ -28,6 +28,7 @@
  */
 class sss_material : public material {
 public:
+  bool transmits() const override { return true; }
   sss_material(const color &surface_color, const color &scatter_color,
                float scatter_distance = 0.5f, float roughness = 0.3f)
       : sss_material(make_shared<solid_color>(surface_color), scatter_color,

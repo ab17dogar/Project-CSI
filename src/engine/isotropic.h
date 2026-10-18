@@ -18,6 +18,7 @@ public:
   isotropic(shared_ptr<texture> a) : albedo(a) {}
 
   bool is_phase_function() const override { return true; }
+  bool transmits() const override { return true; }
 
   color eval(const hit_record &rec, const vec3 &, const vec3 &) const override {
     return albedo->value(rec.u, rec.v, rec.p) * INV_4PI;

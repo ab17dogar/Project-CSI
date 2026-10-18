@@ -31,6 +31,7 @@ from pathlib import Path
 import numpy as np
 
 import common
+from plot_convergence import METHOD_STYLE
 from plot_renders import read_pfm
 
 REL_EPS = 0.01
@@ -100,8 +101,8 @@ def main():
     for scene, region in sorted({(k[0], k[1]) for k in mean}):
         pixels = next(r["pixels"] for r in rows if r["scene"] == scene and r["region"] == region)
         base = np.mean(mean.get((scene, region, "mis"), [np.nan]))
-        for method in [m for m in ("mis", "bsdf", "nee", "mis_tree", "nee_tree")
-                       if (scene, region, m) in mean]:
+        found = {k[2] for k in mean if k[:2] == (scene, region)}
+        for method in [m for m in METHOD_STYLE if m in found] + sorted(found - set(METHOD_STYLE)):
             v = float(np.mean(mean[(scene, region, method)]))
             lines.append(f"| {scene} | {region} | {pixels} | {method} | {v:.3e} | {v / base:.2f} |")
     (out / "regions.md").write_text("\n".join(lines) + "\n\nrelMSE corrected for reference noise, "
