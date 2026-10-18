@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!-- Objects to insert into benchmarks/scenes/cornell_box.xml with
+     make_dataset.py (option insert). A saturated glossy sphere on the floor, front
+     left: it casts a shadow and bleeds blue onto the white floor, the two
+     effects of an inserted object on the captured scene. Material names must
+     not clash with the base scene's. -->
+<ItemContainer>
+  <Materials>
+    <PBR name="inserted_blue">
+      <Color r="0.08" g="0.22" b="0.85" />
+      <Metallic value="0" />
+      <Roughness value="0.3" />
+    </PBR>
+  </Materials>
+  <Objects>
+    <Sphere>
+      <Radius value="0.22" />
+      <Position x="-0.5" y="0.22" z="0.6" />
+      <Scale x="1" y="1" z="1" />
+      <Rotation x="0" y="0" z="0" />
+      <Material name="inserted_blue" />
+    </Sphere>
+  </Objects>
+</ItemContainer>

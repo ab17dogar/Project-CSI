@@ -63,6 +63,19 @@ jobs:
           ./build/rt_compare build/test.pfm build/ref.pfm --ref-variance build/ref_var.pfm --json
           grep -q '^cornell_box,mis,' build/log.csv
 
+      - name: Dataset export smoke test
+        run: |
+          python3 benchmarks/make_dataset.py cornell_box \
+            --insert benchmarks/inserts/cornell_blue_sphere.xml --poses jitter \
+            --train 3 --test 2 --spp 4 --width 32 --points 300 --out build/dataset
+          python3 -c "import json; t = json.load(open('build/dataset/transforms_train.json')); assert len(t['frames']) == 3"
+          test -s build/dataset/points3d.ply && test -s build/dataset/test_inserted/r_001_mask.png
+          # Poses must agree with the rendered geometry. Non-square, so that
+          # mixing up the horizontal and vertical field of view would show.
+          python3 benchmarks/make_dataset.py env_objects --train 3 --test 0 --spp 1 \
+            --width 128 --points 3000 --out build/dataset_env
+          python3 benchmarks/check_dataset.py build/dataset_env
+
       - name: Generated scenes are up to date
         if: matrix.os == 'ubuntu-latest'
         run: |

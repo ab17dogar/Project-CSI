@@ -214,6 +214,35 @@ TEST(split_passes_are_bit_identical_to_one_pass) {
   CHECK(!buffers_identical(one, reseeded), "a different seed changes the image");
 }
 
+// Looking straight down at a plane, z-depth equals the camera height at
+// every pixel (the ray distance would grow toward the corners). A sphere
+// toward -z, which is image-up for this camera, must land in the top rows.
+TEST(geometry_buffers_give_z_depth_and_normal) {
+  const int n = 16;
+  auto wd = th::make_world(1);
+  wd->pconfig->IMAGE_WIDTH = n;
+  wd->pconfig->IMAGE_HEIGHT = n;
+  wd->pcamera = std::make_shared<camera>(point3(0, 2, 0), point3(0, 0, 0), vec3(0, 0, -1), 60.0, 1.0);
+  auto white = std::make_shared<lambertian>(color(0.5, 0.5, 0.5));
+  wd->objects.push_back(std::make_shared<quad>(point3(-5, 0, -5), vec3(0, 0, 10), vec3(10, 0, 0), white));
+  wd->objects.push_back(std::make_shared<sphere>(point3(0, 0.2, -0.6), 0.2, white));
+  const render::GeometryBuffers g = render::RenderGeometry(*wd);
+  CHECK(g.depth.width == n && g.depth.height == n && g.normal.width == n, "buffer size");
+  int sphere_top = 0, sphere_bottom = 0;
+  for (int y = 0; y < n; ++y)
+    for (int x = 0; x < n; ++x) {
+      const double d = g.depth.at(x, y).x();
+      if (d < 2.0 - 1e-6) {
+        ++(y < n / 2 ? sphere_top : sphere_bottom);
+        continue;
+      }
+      CHECK_NEAR(d, 2.0, 1e-6, "z-depth of the plane is constant");
+      CHECK_NEAR((g.normal.at(x, y) - vec3(0, 1, 0)).length(), 0, 1e-6, "plane normal faces the camera");
+    }
+  CHECK(sphere_top > 0 && sphere_bottom == 0,
+        "rows run top to bottom: " << sphere_top << " sphere pixels on top, " << sphere_bottom << " below");
+}
+
 TEST(progressive_schedule_respects_limits) {
   auto wd = tiny_scene(24, 16);
   {

@@ -8,6 +8,8 @@
 #include "engine/world.h"
 #include <atomic>
 #include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -80,6 +82,16 @@ std::string ResolveScenePath(const std::string &input) {
   return {};
 }
 
+// "x,y,z" -> vec3. Rejects anything else, including trailing text.
+bool ParseVec3(const std::string &text, vec3 &out) {
+  double v[3];
+  char tail;
+  if (std::sscanf(text.c_str(), "%lf,%lf,%lf%c", &v[0], &v[1], &v[2], &tail) != 3)
+    return false;
+  out = vec3(v[0], v[1], v[2]);
+  return true;
+}
+
 } // namespace
 
 // Hittable List aka Scene:
@@ -99,6 +111,10 @@ int RunProgressive(world &w, const string &scenePath, const string &outPath,
                    bool logFlip, string label);
 
 // Logging flags defined in util/logging.cpp
+
+// Scale applied to radiance before the sRGB transfer in PNG output
+// (--exposure, in stops). HDR outputs are never scaled.
+static double g_display_exposure = 1.0;
 
 int main(int argc, char **argv) {
   // Default CLI-controlled values
@@ -121,6 +137,9 @@ int main(int argc, char **argv) {
   double timeBudget = 0.0;
   string referencePath, refVariancePath, logPath, varianceOutPath, label;
   bool logFlip = true;
+  // Camera overrides (multi-view dataset export) and geometry output
+  string lookFromArg, lookAtArg, upArg, geometryPrefix;
+  double fovOverride = -1.0;
   const Raytracer::presets::RenderPresetDefinition *presetDefinition = nullptr;
 
   // Simple argv parser
@@ -166,6 +185,18 @@ int main(int argc, char **argv) {
       logFlip = false;
     } else if (a == "--label" && i + 1 < argc) {
       label = argv[++i];
+    } else if (a == "--look-from" && i + 1 < argc) {
+      lookFromArg = argv[++i];
+    } else if (a == "--look-at" && i + 1 < argc) {
+      lookAtArg = argv[++i];
+    } else if (a == "--up" && i + 1 < argc) {
+      upArg = argv[++i];
+    } else if (a == "--fov" && i + 1 < argc) {
+      fovOverride = atof(argv[++i]);
+    } else if (a == "--exposure" && i + 1 < argc) {
+      g_display_exposure = std::pow(2.0, atof(argv[++i]));
+    } else if (a == "--geometry-out" && i + 1 < argc) {
+      geometryPrefix = argv[++i];
     } else if (a == "--max-depth" && i + 1 < argc) {
       maxDepthOverride = atoi(argv[++i]);
     } else if (a == "--rr-depth" && i + 1 < argc) {
@@ -215,6 +246,13 @@ int main(int argc, char **argv) {
           << "  --rr-depth N     Bounces before Russian roulette\n"
           << "  --seed N         Random seed (same seed -> same image)\n"
           << "  --pfm <file>     Also write linear HDR radiance (.pfm)\n"
+          << "  --look-from X,Y,Z  Override the camera position\n"
+          << "  --look-at X,Y,Z    Override the camera target\n"
+          << "  --up X,Y,Z         Override the camera up vector\n"
+          << "  --fov DEG          Override the vertical field of view\n"
+          << "  --exposure STOPS   Exposure of the PNG output (HDR output unchanged)\n"
+          << "  --geometry-out P   Write P_depth.pfm (z-depth) and P_normal.pfm\n"
+          << "                     (world space) of the first hit per pixel\n"
           << "\nMeasurement (progressive rendering, no denoising):\n"
           << "  --time-budget S  Render for S seconds (render time only)\n"
           << "  --progressive    Passes of doubling spp up to --samples\n"
@@ -303,6 +341,23 @@ int main(int argc, char **argv) {
   // Apply denoiser setting
   pworld->pconfig->enableDenoiser = useDenoiser;
 
+  // Camera overrides keep the scene's lens (aperture, focus distance).
+  if (!lookFromArg.empty() || !lookAtArg.empty() || !upArg.empty() ||
+      fovOverride > 0.0) {
+    const camera &old = *pworld->pcamera;
+    point3 from = old.LOOK_FROM, at = old.LOOK_AT;
+    vec3 up = old.UP;
+    if ((!lookFromArg.empty() && !ParseVec3(lookFromArg, from)) ||
+        (!lookAtArg.empty() && !ParseVec3(lookAtArg, at)) ||
+        (!upArg.empty() && !ParseVec3(upArg, up))) {
+      cerr << "Camera vectors must be given as X,Y,Z" << endl;
+      return 4;
+    }
+    pworld->pcamera = std::make_shared<camera>(
+        from, at, up, fovOverride > 0.0 ? fovOverride : old.FOV,
+        pworld->pconfig->ASPECT_RATIO, old.aperture, old.focus_dist);
+  }
+
   vector<color> bitmap;
 
   // Decide output location: either CLI override or default behavior
@@ -378,6 +433,16 @@ int main(int argc, char **argv) {
     tile_size = 16;
   if (tile_size > pworld->GetImageWidth())
     tile_size = pworld->GetImageWidth();
+
+  if (!geometryPrefix.empty()) {
+    const render::GeometryBuffers g = render::RenderGeometry(*pworld);
+    if (!write_pfm(geometryPrefix + "_depth.pfm", g.depth) ||
+        !write_pfm(geometryPrefix + "_normal.pfm", g.normal)) {
+      cerr << "Failed to write geometry buffers " << geometryPrefix << "_*.pfm"
+           << endl;
+      return 5;
+    }
+  }
 
   if (progressive)
     return RunProgressive(*pworld, resolvedScenePath, outPath, pfmPath,
@@ -455,7 +520,7 @@ void SaveImage(world &sceneWorld, const string &fileName,
 
       // Mean radiance, then the sRGB transfer function (the old sqrt was a
       // gamma-2.0 approximation).
-      auto scale = 1.0 / sceneWorld.GetSamplesPerPixel();
+      auto scale = g_display_exposure / sceneWorld.GetSamplesPerPixel();
       r = linear_to_srgb(scale * r);
       g = linear_to_srgb(scale * g);
       b = linear_to_srgb(scale * b);

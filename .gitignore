@@ -66,6 +66,9 @@ benchmarks/results/*/*/*.pfm
 benchmarks/results/*/*/*.png
 !benchmarks/results/*/plots/*.png
 
+# Multi-view datasets (benchmarks/make_dataset.py) are large and regenerable.
+/datasets/
+
 # Python bytecode
 __pycache__/
 *.pyc

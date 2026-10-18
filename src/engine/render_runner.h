@@ -87,4 +87,19 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
                          const TileCallback &onTileFinished = TileCallback(),
                          std::atomic<bool> *cancelFlag = nullptr);
 
+/**
+ * @brief Geometry of the first hit through each pixel center.
+ *
+ * depth: distance along the camera's viewing axis (z-depth, as used by
+ * multi-view reconstruction), in all three channels. normal: unit
+ * world-space normal facing the camera. Pixels that see no geometry are 0 in
+ * both. Same layout as RenderBuffers (top row first). For a pinhole camera;
+ * with an aperture, rays come from random lens positions.
+ */
+struct GeometryBuffers {
+  image_rgb depth;
+  image_rgb normal;
+};
+GeometryBuffers RenderGeometry(world &sceneWorld);
+
 } // namespace render

@@ -339,4 +339,27 @@ void RenderSceneToBitmap(world &sceneWorld, std::vector<color> &bitmap,
   }
 }
 
+GeometryBuffers RenderGeometry(world &sceneWorld) {
+  sceneWorld.prepare();
+  const int width = sceneWorld.GetImageWidth();
+  const int height = sceneWorld.GetImageHeight();
+  const camera &cam = *sceneWorld.pcamera;
+  const vec3 forward = unit_vector(cam.LOOK_AT - cam.LOOK_FROM);
+  GeometryBuffers out{image_rgb(width, height), image_rgb(width, height)};
+  for (int y = 0; y < height; ++y) {
+    // Camera y runs upward; image rows run downward (see RenderPass).
+    const int yy = height - 1 - y;
+    for (int x = 0; x < width; ++x) {
+      const ray r = cam.get_ray((x + 0.5) / width, (yy + 0.5) / height);
+      hit_record rec;
+      if (!sceneWorld.hit(r, 1e-9, INF, rec))
+        continue;
+      const double z = dot(rec.p - r.origin(), forward);
+      out.depth.set(x, y, color(z, z, z));
+      out.normal.set(x, y, rec.normal);
+    }
+  }
+  return out;
+}
+
 } // namespace render
