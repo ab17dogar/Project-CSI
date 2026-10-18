@@ -1,0 +1,52 @@
+| scene | region | pixels | method | relMSE | relMSE / MIS |
+|---|---|---:|---|---:|---:|
+| gaussian_cornell_sphere | direct | 15840 | mis | 3.970e-05 | 1.00 |
+| gaussian_cornell_sphere | direct | 15840 | nee | 4.474e-05 | 1.13 |
+| gaussian_cornell_sphere | direct | 15840 | mis_tree_distance | 3.875e-05 | 0.98 |
+| gaussian_cornell_sphere | direct | 15840 | mis_tree_emitter | 4.085e-05 | 1.03 |
+| gaussian_cornell_sphere | direct | 15840 | mis_tree | 3.956e-05 | 1.00 |
+| gaussian_cornell_sphere | direct | 15840 | nee_tree_distance | 2.998e-05 | 0.76 |
+| gaussian_cornell_sphere | direct | 15840 | nee_tree_emitter | 3.499e-05 | 0.88 |
+| gaussian_cornell_sphere | direct | 15840 | nee_tree | 7.229e-05 | 1.82 |
+| gaussian_cornell_sphere | surfaces | 544 | mis | 4.968e-03 | 1.00 |
+| gaussian_cornell_sphere | surfaces | 544 | nee | 8.051e-02 | 16.20 |
+| gaussian_cornell_sphere | surfaces | 544 | mis_tree_distance | 4.978e-03 | 1.00 |
+| gaussian_cornell_sphere | surfaces | 544 | mis_tree_emitter | 5.106e-03 | 1.03 |
+| gaussian_cornell_sphere | surfaces | 544 | mis_tree | 4.793e-03 | 0.96 |
+| gaussian_cornell_sphere | surfaces | 544 | nee_tree_distance | 4.510e-01 | 90.78 |
+| gaussian_cornell_sphere | surfaces | 544 | nee_tree_emitter | 4.718e-01 | 94.96 |
+| gaussian_cornell_sphere | surfaces | 544 | nee_tree | 6.331e-02 | 12.74 |
+| gaussian_lights | direct | 29901 | mis | 2.927e-05 | 1.00 |
+| gaussian_lights | direct | 29901 | nee | 4.268e-05 | 1.46 |
+| gaussian_lights | direct | 29901 | mis_tree_distance | 2.977e-05 | 1.02 |
+| gaussian_lights | direct | 29901 | mis_tree_emitter | 3.106e-05 | 1.06 |
+| gaussian_lights | direct | 29901 | mis_tree | 3.325e-05 | 1.14 |
+| gaussian_lights | direct | 29901 | nee_tree_distance | 4.618e-05 | 1.58 |
+| gaussian_lights | direct | 29901 | nee_tree_emitter | 3.959e-05 | 1.35 |
+| gaussian_lights | direct | 29901 | nee_tree | 4.723e-05 | 1.61 |
+| gaussian_lights | surfaces | 46899 | mis | 1.687e-03 | 1.00 |
+| gaussian_lights | surfaces | 46899 | nee | 5.289e-03 | 3.14 |
+| gaussian_lights | surfaces | 46899 | mis_tree_distance | 9.430e-04 | 0.56 |
+| gaussian_lights | surfaces | 46899 | mis_tree_emitter | 9.919e-04 | 0.59 |
+| gaussian_lights | surfaces | 46899 | mis_tree | 9.128e-04 | 0.54 |
+| gaussian_lights | surfaces | 46899 | nee_tree_distance | 2.000e-03 | 1.19 |
+| gaussian_lights | surfaces | 46899 | nee_tree_emitter | 2.219e-03 | 1.32 |
+| gaussian_lights | surfaces | 46899 | nee_tree | 2.215e-03 | 1.31 |
+| gaussian_spots | direct | 1920 | mis | 2.784e-04 | 1.00 |
+| gaussian_spots | direct | 1920 | nee | 3.319e-04 | 1.19 |
+| gaussian_spots | direct | 1920 | mis_tree_distance | 1.894e-04 | 0.68 |
+| gaussian_spots | direct | 1920 | mis_tree_emitter | 1.560e-04 | 0.56 |
+| gaussian_spots | direct | 1920 | mis_tree | 1.430e-04 | 0.51 |
+| gaussian_spots | direct | 1920 | nee_tree_distance | 2.079e-04 | 0.75 |
+| gaussian_spots | direct | 1920 | nee_tree_emitter | 1.997e-04 | 0.72 |
+| gaussian_spots | direct | 1920 | nee_tree | 2.093e-04 | 0.75 |
+| gaussian_spots | surfaces | 74880 | mis | 3.554e-03 | 1.00 |
+| gaussian_spots | surfaces | 74880 | nee | 1.661e-02 | 4.67 |
+| gaussian_spots | surfaces | 74880 | mis_tree_distance | 3.213e-03 | 0.90 |
+| gaussian_spots | surfaces | 74880 | mis_tree_emitter | 3.116e-03 | 0.88 |
+| gaussian_spots | surfaces | 74880 | mis_tree | 2.886e-03 | 0.81 |
+| gaussian_spots | surfaces | 74880 | nee_tree_distance | 2.115e-02 | 5.95 |
+| gaussian_spots | surfaces | 74880 | nee_tree_emitter | 1.630e-02 | 4.59 |
+| gaussian_spots | surfaces | 74880 | nee_tree | 1.622e-02 | 4.56 |
+
+relMSE corrected for reference noise, mean over seeds; per channel as in the metrics library.

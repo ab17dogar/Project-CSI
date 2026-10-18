@@ -61,12 +61,44 @@ light, like a mesh with many small emitters:
    - `tree` (`--field-sampler tree`, or `sampler="tree"` on the
      `<GaussianField>`): a light hierarchy on the field's acceleration
      structure. From the root, each step picks a child with probability
-     proportional to its power over the squared distance from the shading
-     point to its centre, the distance clamped below by the node's
-     half-diagonal; a leaf picks among its Gaussians the same way. P_i is
-     the product of the branch probabilities, recomputed for MIS by walking
-     from Gaussian i's leaf to the root, so it depends on the shading point
-     and favours nearby emitters.
+     proportional to an estimate of its contribution at the shading point
+     x; a leaf picks among its Gaussians the same way. P_i is the product of
+     the branch probabilities, recomputed for MIS by walking from Gaussian
+     i's leaf to the root (branch probabilities shared by the Gaussians one
+     ray passes are computed once per ray). The estimate of a node with
+     power Phi, centre c, half-diagonal r, d = |c - x| and w = (c - x) / d
+     is (stage 2c)
+
+         emitter(w) / max(d^2, r^2) * cos_bound(n, w, r / d),
+
+     - *emitter*: a Gaussian's emission toward x is o L(w) A(w), with
+       A(w) = 2 pi |M w| / |det M| its exact projected area (a flat
+       Gaussian is thin edge-on) and L(w) its SH radiance toward x, floored
+       at a tenth of its view-independent radiance (L(w) is evaluated at one
+       direction, the Gaussian is seen over a range). For a node,
+       sum_i o_i L_i A_i(w) <= sqrt(W w^T Q w) by Cauchy-Schwarz, with
+       W = sum_i o_i L_i and Q = sum_i o_i L_i (2 pi / |det M_i|)^2 M_i^T M_i,
+       stored per node (6 floats); the SH lobe enters as the node's
+       power-weighted luminance SH (SH is linear), the same floor applies.
+       Near nodes (d < 2r), where w says little, use Phi / 4 pi.
+     - *receiver*: below the horizon of an opaque surface nothing is
+       reflected. cos_bound is 0 if the node's box lies below the tangent
+       plane (its highest point, n.(c - x) + sum_a |n_a| h_a, is not above
+       it; exact for axis-aligned normals), else the largest cosine between
+       n and the cone of directions to the node's bounding sphere,
+       cos(max(0, theta_c - theta_b)) with sin theta_b = r / d. It is 1 at
+       volumes, transmissive materials, or inside the sphere. Boxes contain
+       every Gaussian's support, so the bound is conservative: a Gaussian
+       that reaches above the horizon keeps a positive probability.
+
+     `tree-distance` keeps only Phi / max(d^2, r^2) (the hierarchy of stage
+     2b), `tree-emitter` drops the receiver bound. The estimate only steers
+     sampling: MIS uses the same P_i, so it changes variance, never the
+     expected value. A node can reach above the horizon while all its
+     children lie below it; a sample that gets there picks nothing (as in
+     pbrt-v4's light BVH). Any Gaussian it could have picked lies below the
+     horizon, so the sample is worth nothing either way, and it saves the
+     shadow ray.
 2. It draws a point y from the 3D Gaussian N(mu_i, Sigma_i) and connects
    x to it. The direction density is a closed-form line integral,
 
@@ -123,15 +155,95 @@ camera sees the field directly and every strategy does the same):
   different distances it halves MIS's error (0.54x), although it renders
   10% fewer samples in the same time; light sampling alone improves 2.6x.
 - **And loses where its heuristic is wrong.** In the stand-in, one lamp
-  dominates, and the wall Gaussians next to the sphere are flat discs that
-  it sees edge-on. Power over distance treats them as emitting equally in
-  all directions and moves probability from the lamp to them: MIS is 7%
-  worse, and light sampling alone becomes heavy-tailed (rare lamp samples
-  with huge weights; its curve rises at the end). An emitter-orientation
-  bound in the node importance would fix exactly this; it is the next step
-  (stage 2c).
+  dominates. Power over distance moves probability from the lamp to the
+  wall Gaussians near the sphere: light sampling alone becomes
+  heavy-tailed (rare lamp samples with huge weights; its curve rises at
+  the end), and MIS was 7% worse in this run. We attributed this to the
+  flat wall Gaussians seen edge-on and expected an orientation bound to fix
+  it. Stage 2c below shows otherwise: the receiver bound removes the tail,
+  the orientation bound does not, and the 7% is within run-to-run noise.
+
+In this run `mis_tree` / `nee_tree` are the stage 2b hierarchy, called
+`tree-distance` since stage 2c.
 
 ![Renders](../benchmarks/results/gaussian_lighting/plots/renders.png)
+
+## Results: the light tree's bounds (stage 2c)
+
+`benchmarks/results/light_tree_bounds/`: the ablation of the node
+estimate, 30 s per render, 2 seeds, 4 cores. The two scenes above and
+`gaussian_spots` (`benchmarks/scenes/`, 320x240, 16384-spp reference):
+24 flat downlights, 10 wall washers and 80 floor uplights, all with SH
+degree-1 lobes, around a table. Power over distance misjudges all of
+them: the lobes send little light sideways, the flat ones are thin
+edge-on, and many lie below the horizon of most surfaces.
+
+relMSE (reference noise removed, mean of 2 seeds) relative to MIS with
+power selection at equal time; in brackets, per sample (the ratio times
+the ratio of samples rendered), which shows what the estimate buys
+before its cost:
+
+| Selection | Cornell stand-in | many lights | spotlights | samples in 30 s, vs power |
+|---|---:|---:|---:|---:|
+| MIS, power | 1.0 (2.0e-4) | 1.0 (1.0e-3) | 1.0 (3.5e-3) | 1 |
+| MIS, tree: distance (2b) | 1.00 (0.99) | 0.56 (0.49) | 0.90 (0.83) | 0.99 / 0.87 / 0.92 |
+| MIS, tree: + emitter | 1.03 (0.99) | 0.59 (0.50) | 0.88 (0.72) | 0.96 / 0.84 / 0.82 |
+| MIS, tree: all bounds | 0.97 (0.95) | **0.55** (0.43) | **0.81** (0.62) | 0.98 / 0.79 / 0.77 |
+| light sampling, power | 13.4 | 3.1 | 4.7 | |
+| light sampling, tree: distance | 74 | 1.19 | 5.9 | |
+| light sampling, tree: + emitter | 77 | 1.32 | 4.6 | |
+| light sampling, tree: all bounds | **10.7** | 1.32 | **4.6** | |
+
+Spread between the two seeds of light sampling alone (larger relMSE over
+smaller; heavy tails show up as a large spread):
+
+| Selection | Cornell stand-in | many lights | spotlights |
+|---|---:|---:|---:|
+| power | 3.2 | 1.02 | 1.31 |
+| tree: distance | 20 | 1.43 | 3.2 |
+| tree: + emitter | 19 | 1.42 | 1.26 |
+| tree: all bounds | **1.08** | 1.12 | 1.41 |
+
+On surfaces only (`plots/regions.md`) the ratios are the same within 0.01,
+except the Cornell sphere: MIS with all bounds 0.96, light sampling 12.7
+against 91 with the distance tree.
+
+- **Per sample, every bound does what it is for.** With view-dependent,
+  flat lights, MIS's error per sample falls from 0.83 (distance) to 0.72
+  (emitter) to 0.62 (all bounds). With 400 small isotropic lights the
+  emitter term has nothing to see (0.49 to 0.50), and all bounds together
+  gain 12% over distance alone.
+- **At equal time the full tree wins or ties.** It renders 2-23% fewer
+  samples than power selection and 2-16% fewer than the distance tree. In
+  the spotlight scene the full tree is the best variant
+  (0.81, against 0.90 for the distance tree); with many isotropic lights
+  it ties with the distance tree (0.55 against 0.56); in the stand-in all
+  variants are within noise of power selection.
+- **The receiver bound removes the heavy tail of light sampling.** With
+  the distance tree, and still with the emitter term, light sampling in
+  the stand-in has one seed 20x worse than the other; with all bounds the
+  two seeds agree within 8%, and the error is 7x lower than the distance
+  tree's and 1.25x lower than power selection's. In the spotlight scene
+  the distance tree's 3.2x spread also returns to that of power
+  selection. What misled the distance heuristic was mostly probability
+  given to Gaussians below the receiver's horizon, not flat Gaussians
+  seen edge-on, as stage 2b had guessed.
+- **Cost matters as much as the estimate.** The first implementation
+  rendered 30% fewer samples than the distance tree in the spotlight scene
+  and lost to it at equal time, although its per-sample error was the
+  same as here. It evaluated SH of degree 3 for every channel at every
+  node and leaf, used four square roots per horizon bound, and computed
+  each leaf weight twice. Evaluating SH only to the field's degree, one
+  luminance SH per Gaussian, and a two-root horizon bound gave the numbers
+  above with identical probabilities up to the luminance change.
+- **Noise.** MIS with power selection in the stand-in moved 6% between two
+  runs of the same code (the sample count depends on machine load), so
+  differences under about 5% are not significant; two seeds per method. The stage 2b
+  run's 1.07 for the distance tree in the stand-in is 1.00 here.
+
+![Convergence of the MIS variants](../benchmarks/results/light_tree_bounds/plots/convergence_relmse.png)
+
+![Renders](../benchmarks/results/light_tree_bounds/plots/renders.png)
 
 ## Tests
 
@@ -148,8 +260,10 @@ camera sees the field directly and every strategy does the same):
 | `gaussian_field_attenuates_what_is_behind_it` | an emitter seen through a Gaussian |
 | `gaussian_emission_sampling_matches_pdf` | the direction density integrates to 1 (outside and inside the Gaussian); the sampler reports it; a chi-square test of sampled directions on a gnomonic grid |
 | `gaussian_field_light_sampling_is_unbiased` | 14 overlapping Gaussians (view-dependent colour, a small bright lamp Gaussian, a zero-power Gaussian with a positive SH lobe) and a point light shadowed by them: every strategy and both selections against a quadrature of the field's own trace(); MIS less noisy than BSDF sampling |
-| `gaussian_light_tree_selection_is_consistent` | 500 Gaussians under a transform: tree probabilities sum to 1 at any point, the reported pmf matches, sampled choices pass a chi-square test; a near light beats an equally bright far one, power selection does not care |
-| `gaussian_light_tree_mis_weights_match_its_sampling` | a near and a far Gaussian where tree and power selection disagree: every strategy against quadrature with tree selection |
+| `gaussian_light_tree_selection_is_consistent` | 500 flat, rotated, view-dependent Gaussians under a transform, every tree variant, with and without a normal: probabilities sum to 1 at any point (at most 1 with the receiver bound, and failed selections occur exactly that often), the reported pmf matches, sampled choices pass a chi-square test; a near light beats an equally bright far one, power selection does not care |
+| `gaussian_light_tree_mis_weights_match_its_sampling` | a near and a far Gaussian where tree and power selection disagree: every strategy against quadrature, every tree variant |
+| `gaussian_light_tree_receiver_bound_is_conservative` | 400 Gaussians at tilted normals: probability zero exactly where a Gaussian's support box lies below the tangent plane, positive wherever it reaches above |
+| `gaussian_light_tree_mis_is_consistent_across_points` | rays alternating between two floor points, Gaussians low over the horizon whose probabilities the receiver bound changes more than 2x: MIS and light sampling against each point's quadrature |
 
 Mutation-tested. Stage 1: compositing without sorting, dropping the path
 attenuation or the shadow-ray transmittance, a transposed whitening matrix,
@@ -159,10 +273,20 @@ probability, a sampled Gaussian blocking its own light, ignoring light-
 sampling-only mode, dropping zero-power Gaussians, and sampling with the
 whitening matrix instead of its inverse; for the tree, a pmf walk that
 swaps the children and MIS weights that use the power pmf while sampling
-uses the tree. Every one is caught. Two first slipped through and led to
+uses the tree. Stage 2c: MIS weights without the receiver normal, a
+per-ray branch memo that is never reset, a horizon bound that ignores the
+node's extent, and a plane test without the box's extent or dropped
+altogether. Every one is caught. Four first slipped through and led to
 better tests: the zero-power test Gaussian's lobe faced away from the
-floor, and the power-pmf weights were invisible in a scene where both
-selections agree; the near/far test was written for it.
+floor; the power-pmf weights were invisible in a scene where both
+selections agree (the near/far test was written for it); and the receiver
+normal and the memo were invisible while every test shaded a single point
+under a single BVH leaf (the across-points test).
+
+What the tests cannot catch, by design: the node estimate only steers
+sampling, so a worse estimate (no orientation term, no SH floor, a normal
+given to a transmissive surface) changes variance, not the expected value.
+Those are judged by the benchmark below.
 
 ## A Gaussian scene without a GPU
 
@@ -224,10 +348,11 @@ python3 benchmarks/insertion_demo.py datasets/cornell_box --view 1 --spp 256
 - One field per scene; the field does not scatter light, so the inserted
   object's shadow and reflected light do not appear on the capture
   (contribution C2).
-- The light hierarchy weighs power against distance only. It ignores the
-  receiver's orientation (a cosine bound) and view-dependent emission (a
-  bound on SH emission over the cone of directions to a node), the
-  remaining part of contribution C1.
+- The light tree's estimate is a heuristic of the receiver's horizon, not
+  of its BSDF: a glossy receiver gets the same probabilities as a diffuse
+  one, and its SH term looks at one direction per node rather than bounding
+  emission over the cone of directions to it. Its cost (up to 23% of the
+  samples in the scenes above) decides whether it pays off at equal time.
 - The particle model is what a trained 3DGS shows when ray traced, not a
   continuous volume; a ray's result depends on the order of maximum
   responses, as in 3DGRT.

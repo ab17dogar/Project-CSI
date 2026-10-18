@@ -66,5 +66,5 @@
       }
     }
   },
-  "note": "Rendered by a binary built from the working tree committed as 9ae760f (recorded at run time as 118e891-dirty). The gaussian_cornell_sphere scene and its Gaussian stand-in are generated from a dataset: see docs/GAUSSIAN_FIELDS.md. The gaussian_cornell_sphere reference was rendered before the light tree was added, with power selection (the default, unchanged by it)."
+  "note": "Rendered by a binary built from the working tree committed as 9ae760f (recorded at run time as 118e891-dirty). The gaussian_cornell_sphere scene and its Gaussian stand-in are generated from a dataset: see docs/GAUSSIAN_FIELDS.md. The gaussian_cornell_sphere reference was rendered before the light tree was added, with power selection (the default, unchanged by it). Its mis_tree and nee_tree are the light hierarchy of stage 2b (distance only), called tree-distance since stage 2c; tree now also uses emitter and receiver bounds."
 }

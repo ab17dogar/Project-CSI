@@ -150,7 +150,7 @@ contribution is in what is measured:
 | 1 | Gaussian field in the path tracer: load 3DGS `.ply`, acceleration structure over Gaussians, emission and transmittance along rays (particle model), SH evaluation, BSDF-only baseline; unoptimized Gaussian stand-in built from a dataset, and a per-region insertion demo. Tests against closed forms and brute force | 0; **done** |
 | 2a | C1: next event estimation of the field with power-based Gaussian selection, closed-form direction pdf, per-Gaussian MIS against BSDF rays | 1; **done** |
 | 2b | C1: light hierarchy over Gaussians (power over clamped squared distance), pmf by leaf-to-root walk for MIS | 2a; **done** |
-| 2c | C1: receiver-orientation and SH-emission bounds in the hierarchy's node importance | 2b |
+| 2c | C1: receiver-horizon, emitter-orientation and SH-emission bounds in the hierarchy's node importance, with their ablation | 2b; **done** |
 | 3 | C2 + C3: correlated differential rendering, receiver model, local reflectance | 2 |
 | 4 | C4: oracle swaps, region metrics, baselines; captured scenes (Mip-NeRF 360) for qualitative results | 0-3 |
 
