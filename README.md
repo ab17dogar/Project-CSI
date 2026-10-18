@@ -335,9 +335,12 @@ Reduces ray-scene intersection from **O(n)** to roughly **O(log n)** using:
 - Binned Surface Area Heuristic (SAH) construction (16 bins)
 
 ### Research Direction
-See [docs/RESEARCH_DIRECTION.md](docs/RESEARCH_DIRECTION.md): next event
-estimation from 3D Gaussian radiance fields, the literature check behind it,
-and the evaluation plan.
+See [docs/RESEARCH_DIRECTION.md](docs/RESEARCH_DIRECTION.md): physically
+based insertion of synthetic objects into captured Gaussian scenes. The
+capture lights the objects, the objects shadow and color the capture, and a
+closed-loop evaluation attributes the error to its source.
+[docs/LITERATURE_REVIEW.md](docs/LITERATURE_REVIEW.md) has the prior work it
+is positioned against.
 
 ### GGX Microfacet Model
 Physically accurate BRDF with:

@@ -1,87 +1,169 @@
-# Research direction: next event estimation from 3D Gaussian radiance fields
+# Research direction: physically based insertion of synthetic objects into captured Gaussian scenes
 
-Status: proposal, October 2026. Literature check done with targeted web
-searches, **not** a systematic review. Before committing to an implementation,
-do the review steps in [Due diligence](#due-diligence-before-phase-3).
+Status: proposal, revised 18 October 2026 after a second literature check
+([LITERATURE_REVIEW.md](LITERATURE_REVIEW.md)). The check worked from
+abstracts and documentation, not full papers. Its "verify" list must be
+cleared before Phase 3 code is committed to.
 
-## One-sentence claim
+## Starting point
 
-A captured 3D Gaussian Splatting (3DGS) scene can act as a **volumetric,
-view-dependent, self-occluding many-light emitter** inside an unbiased path
-tracer. Sampling it with next event estimation plus MIS, instead of relying on
-BSDF rays that happen to hit it, should give large equal-time variance
-reductions when synthetic objects are lit by captured surroundings.
+Render a captured, photorealistic scene with synthetic objects inserted, and
+reconstruct the scene well enough that the insertion is physically
+consistent. The literature check shows the generic form is taken:
+LightHarmony3D (2026) inserts meshes into 3DGS scenes and evaluates on
+path-traced ground-truth pairs (LH3D-Bench); DOT3D (EGSR 2026) and D3DR
+harmonize with diffusion models. What remains open is doing it *physically*,
+in both directions, with the capture itself as the light, and measuring where
+the error comes from. That splits into four contributions.
 
-## Why this and not "ray-traced Gaussian splatting"
+## Contributions
 
-Ray tracing Gaussians is solved and shipping:
+### C1. The capture lights the object
 
-- 3DGRT (Moenne-Loccoz et al., SIGGRAPH Asia 2024) and 3DGUT (CVPR 2025),
-  open-sourced as [3DGRUT](https://github.com/nv-tlabs/3dgrut). Secondary rays,
-  reflections and refraction through particle scenes.
-- [GRay](https://arxiv.org/pdf/2606.30869) (2026). Ray tracing Gaussians
-  near rasterization speed.
-- [Stochastic ray tracing of transparent Gaussians](https://arxiv.org/pdf/2504.06598).
-- Error analysis of the alpha-blending approximations:
-  [Celarek et al., CGF 2025](https://onlinelibrary.wiley.com/doi/10.1111/cgf.70032),
-  [Volumetrically Consistent 3DGS, CVPR 2025](https://chinmay0301.github.io/vol3dgs/).
-- Production: [Arnold 7.5.2 (June 2026)](https://www.cgchannel.com/2026/06/autodesk-releases-arnold-7-5-2-with-support-for-gaussian-splatting/)
-  renders and relights splats; USD 26.03 has a Gaussian splat schema.
+A 3D Gaussian Splatting (3DGS) capture acts as a **volumetric,
+view-dependent, self-occluding many-light emitter** in an unbiased path
+tracer: next event estimation (NEE) toward the Gaussians plus MIS with BSDF
+rays that pass through them.
 
-A CPU path tracer cannot compete there on speed, and speed is what that
-subfield competes on.
+- *Prior art and difference.* LightHarmony3D lights the object with one
+  environment map per insertion point (no parallax, no near field); GaSLight
+  turns bright Gaussians into Cycles surface emitters (no interreflection, no
+  volumetric transmittance); 3DGRT finds the capture only by BSDF sampling;
+  the Gaussian-surfels paper samples surfels (surfaces). PTIR-GS, EAG-PT and
+  Condor et al. are the **verify** items: if any light-samples captured
+  radiance, C1 narrows to its technical core below.
+- *Technical core.* (a) A light hierarchy over Gaussians whose nodes bound
+  spherical-harmonic emission over a cone of directions; the nearest tool is
+  the spherical-Gaussian light tree of Tokuyoshi et al. 2024. (b) MIS
+  between a BSDF ray's line integral of emission through the field and an
+  NEE point sample, in a common measure (starting from Simon et al. 2017).
+  (c) Closed-form optical depth of a Gaussian along a ray (erf) for shadow
+  rays through the field.
+- *Model statement.* 3DGS is trained with alpha compositing, not volume
+  rendering. The estimator is unbiased for a stated volumetric model (EVER-
+  style or Condor-style kernels); the gap to the trained model is measured,
+  not hidden (Celarek et al. 2025).
 
-## The gap
+### C2. The object changes the capture
 
-Inserting synthetic (PBR) objects into a captured scene means the captured
-radiance has to *light* them. Current approaches:
+The object casts shadows on the captured scene, blocks captured light, and
+bounces its own color onto captured surfaces. This is **differential
+rendering inside the field** (Debevec 1998), without a proxy mesh:
 
-| Approach | Example | Limitation |
+    final = L_capture + (L_with − L_without)        on captured pixels
+    final = L_with                                  on object pixels
+
+where L_with and L_without are path traced in the reconstructed local scene
+with and without the object.
+
+- *Common random numbers for free.* This renderer seeds every sample from
+  (pixel, sample index, seed), so rendering both terms with the same seed
+  correlates them exactly: a path that never meets the object contributes the
+  same value to both and cancels. Only paths that interact with the object
+  add variance. First measurement, on ground-truth renders of `cornell_box`
+  with an inserted sphere (one view, 256 spp): the difference's mean squared
+  noise outside the sphere is 214x lower than with independent seeds
+  ([DATASETS.md](DATASETS.md)). Repeating this inside a reconstructed field,
+  and analysing it, is part of the contribution.
+- *Difference from prior art.* LightHarmony3D's shadow ratio uses a proxy
+  mesh and a distant environment map; Omniverse uses a matte proxy mesh;
+  3DGRT dims Gaussians heuristically. None of the summaries mention
+  object-to-capture interreflection.
+- *Open problem.* A volumetric field has no surface. Receivers need a
+  position and normal: the median termination depth along the camera ray
+  with the normal of the dominant Gaussian's shortest axis is the obvious
+  start; the choice must be validated against ground truth (C4).
+
+### C3. Reconstruct the scene where the insertion touches it
+
+C2 needs the reflectance of captured surfaces near the object. Instead of a
+global inverse rendering (crowded: R3DG, IRGS, PTIR-GS), estimate it
+**locally and forward**: for a diffuse receiver, ρ ≈ π L_capture / E, where E
+is the irradiance the path tracer computes from the field itself (C1's
+machinery), only for receivers inside the object's influence region.
+
+- For diffuse receivers C2 + C3 reduce to a ratio,
+  final = L_capture · E_with / E_without, where E_with includes the light the
+  object reflects. A shadow ratio *with* color bleeding.
+- E_without does not depend on the object. Precompute it once per receiver
+  with many samples, so the ratio estimator's bias (a ratio of noisy
+  estimates is biased) stays small. Report that bias explicitly.
+- Glossy receivers: keep the view-dependent SH residual of the capture as is
+  and apply the ratio to the diffuse part only; measure the error that
+  causes.
+- Novelty is modest (it is Debevec's local-scene estimate inside a radiance
+  field). Present it as the enabling component, not the headline.
+
+### C4. Closed-loop evaluation that attributes error to its source
+
+The renderer produces both the training data and the ground truth:
+
+1. Path trace a synthetic scene from many views
+   (`benchmarks/make_dataset.py`, Stage 0 below).
+2. Train 3DGS on those images (any standard trainer; GPU).
+3. Insert the object into the reconstruction and render with C1-C3.
+4. Compare with the same object path traced in the *original* scene, in HDR.
+
+LH3D-Bench already does steps 1-4 with LDR PSNR / SSIM / LPIPS. The
+contribution is in what is measured:
+
+- **Oracle swaps.** Replace one stage at a time with ground truth: true
+  lights and geometry instead of the field (lighting error), true reflectance
+  instead of C3 (reflectance error), true receiver positions (geometry
+  error), reference-level sample counts (Monte Carlo error). The error budget
+  then says which stage to improve.
+- **Region metrics.** Separate error on the object, in its influence region
+  (shadow, bleeding: where ground truth with and without the object differ)
+  and elsewhere (must be untouched).
+- **HDR and equal time.** relMSE and HDR-FLIP with reference-noise
+  correction and convergence curves, from the Phase 2 pipeline.
+- **One renderer for ground truth and methods.** Baselines are implemented in
+  the same renderer: environment map at the insertion point (LightHarmony3D's
+  lighting model), BSDF-only (3DGRT-style), bright Gaussians as surface
+  emitters (GaSLight-style). Differences are then the method, not the
+  renderer.
+
+### Stretch goals
+
+- **Virtual light probes.** Path trace a virtual chrome or diffuse sphere
+  anywhere in a capture: the physically computed counterpart of
+  DiffusionLight's painted chrome ball. Nearly free once C1 works, and a
+  clear figure.
+- **MIS compensation** (Karlík et al. 2019) for the field's light pdf.
+
+## Staged plan
+
+| Stage | Content | Depends on |
 |---|---|---|
-| Bake capture to an environment map / light probe | classic IBL | no parallax, no near-field lighting, no occlusion by the scene |
-| Gaussians as individual emitters in a DCC renderer | [GaSLight](https://lvsn.github.io/gaslight/) (ICCV 2025), Blender | authors note it "precludes ... interreflections or scattering" |
-| Secondary rays traced into the Gaussian field | 3DGRT-style | BSDF sampling only: the captured scene is found by chance, noisy for diffuse receivers |
-| Generative harmonization | [LightHarmony3D](https://arxiv.org/pdf/2603.29209), [D3DR](https://huggingface.co/papers/2503.06740) | not physically based, no convergence guarantee |
-| NEE over **2D Gaussian surfels** with lightcuts | [Differentiable light transport with Gaussian surfels](https://arxiv.org/pdf/2509.18497) | closest prior work. Surfels are surfaces (no volumetric transmittance), and the target is inverse rendering / relighting |
-| Area emitters + MIS in GS inverse rendering | [AEGIR](https://arxiv.org/pdf/2606.28635) (2026) | surface emitters recovered for relighting, not a captured volume used as the light |
-| Gaussians as a path-space radiance cache | [GSCache](https://arxiv.org/html/2507.19718v1) | the Gaussians cache radiance; they are not the emitter |
+| 0 | Multi-view dataset export: training views, test views with and without the inserted object, poses in the NeRF / Blender `transforms.json` format, depth and normals, `points3d.ply` initialization | nothing; **done** |
+| 1 | Gaussian field in the path tracer: load 3DGS `.ply`, acceleration structure over ellipsoids, closed-form transmittance and emission along rays, SH evaluation, BSDF-only baseline. Tests against analytic single-Gaussian integrals | verify items 1-2 |
+| 2 | C1: power-based Gaussian selection first, then the SH-bounded light hierarchy; line-integral MIS | 1 |
+| 3 | C2 + C3: correlated differential rendering, receiver model, local reflectance | 2 |
+| 4 | C4: oracle swaps, region metrics, baselines; captured scenes (Mip-NeRF 360) for qualitative results | 0-3 |
 
-The search found no work that does **light sampling with MIS from a
-volumetric 3D Gaussian radiance field acting as the emitter** for inserted
-geometry in an unbiased estimator.
+Venues: EGSR 2027 (deadline usually in April), HPG 2027, CGF or JCGT. C4
+alone could be a short paper. Training 3DGS needs a CUDA GPU (university
+cluster); the renderer stays CPU.
 
-## What makes it hard (and therefore a contribution)
+## What a reviewer will ask for
 
-1. **Many lights.** A capture has 10^5 to 10^7 Gaussians. Uniform or power
-   selection is useless; this needs a light hierarchy (Conty Estevez & Kulla,
-   HPG 2018) whose node bounds handle anisotropic covariance and
-   spherical-harmonic (view-dependent) emission. Bounding SH emission over a
-   cone of directions is the new technical piece.
-2. **Self-occlusion.** A Gaussian's emission reaches the receiver attenuated by
-   every other Gaussian in between. The optical depth of one 3D Gaussian along a
-   ray is closed form (erf), so transmittance through the field is analytic
-   per segment. The light pdf has to stay tractable despite it.
-3. **MIS between a line integral and a point sample.** A BSDF ray through the
-   field collects emission along its whole length; NEE samples a point. MIS
-   needs a common measure. Line-integration MIS for emissive volumes (Simon,
-   Hanika, Zirr, Dachsbacher, EGSR 2017; Villemin & Hery, JCGT 2013) is the
-   starting point. Extending it to an analytic Gaussian mixture is new.
-4. **Radiance versus density.** 3DGS is trained with alpha compositing, not
-   volumetric density. Converting opacity to an extinction coefficient is an
-   approximation (EVER, Celarek et al.). The method must state which radiance
-   model it is unbiased *for*.
+- Equal-time comparisons against all three baselines above, on synthetic
+  scenes with ground truth and on real captures.
+- Ablations: C1 without the SH bounds, without line-integral MIS; C2 without
+  common random numbers; C3 against the oracle reflectance.
+- The error budget from C4 on every scene.
+- A statement of which radiance model is rendered without bias, and the
+  measured gap to the trained 3DGS.
 
-## Evaluation plan (what a reviewer will ask for)
+## Fallbacks
 
-- **Baselines:** BSDF sampling into the field (3DGRT-style), environment-map
-  baking, per-Gaussian power-based light selection, light BVH without SH
-  bounds.
-- **Metrics:** equal-time and equal-sample MSE / relMSE and FLIP against
-  high-spp references, plus time-to-error curves.
-- **Scenes:** public 3DGS captures (Mip-NeRF 360, Tanks & Temples) with
-  inserted diffuse, glossy and glass objects.
-- **Ablations:** each of 1-3 above switched off on its own.
-- **Venues:** EGSR (paper or Symposium track), HPG, JCGT, or a Eurographics short paper.
+- If the verify items take C1: C2 + C3 + C4 still stand (physically based,
+  proxy-free two-way insertion with an attributed error budget).
+- If the receiver model (C2 open problem) fails: C1 + C4 with
+  environment-map baselines.
+- Unrelated fallback with the least overlap found: denoiser-aware adaptive
+  sampling (allocate samples by estimated post-denoise error; position
+  against Kuznetsov et al. 2018).
 
 ## How the engine already supports this
 
@@ -92,24 +174,12 @@ geometry in an unbiased estimator.
   type.
 - The `LightStrategy` switch (`--integrator mis|bsdf|nee`) is the ablation
   harness.
-- Deterministic per-pixel random streams make equal-sample comparisons exact.
+- Per-sample random streams depend only on (pixel, sample, seed): renders are
+  bit-identical across threads and passes, and two renders with the same seed
+  share random numbers (C2's common random numbers).
 - `constant_medium` already gives unbiased stochastic transmittance for
   shadow rays.
 - Phase 2 measurement pipeline ([BENCHMARKING.md](BENCHMARKING.md)):
-  equal-time rendering, relMSE and HDR-FLIP against references with the
-  reference noise removed, and convergence plots. A new method is a new entry
-  in `benchmarks/run_benchmarks.py`. The paper's results tables come straight
-  out of it once the captured-scene benchmarks are added.
-
-## Due diligence before Phase 3
-
-1. Forward citations (Google Scholar) of 3DGRT, GaSLight, the Gaussian-surfels
-   NEE paper, AEGIR, and Simon et al. 2017.
-2. EGSR, HPG, SIGGRAPH and SIGGRAPH Asia 2025-2026 proceedings: search for
-   "Gaussian" + "light sampling" / "many lights" / "emitter".
-3. arXiv cs.GR listing since mid-2026 (this area moves monthly).
-4. Talk it through with your supervisor before writing code.
-
-If 1-3 turn up the same idea, the fallback with the least overlap is
-denoiser-aware adaptive sampling (allocate samples by estimated post-denoise
-error). Prior art to position against: Kuznetsov et al. 2018.
+  equal-time rendering, relMSE and HDR-FLIP with reference noise removed,
+  convergence and image-grid figures.
+- Stage 0 dataset export ([DATASETS.md](DATASETS.md)).
