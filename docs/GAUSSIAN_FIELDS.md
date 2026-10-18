@@ -89,6 +89,50 @@ Gaussian light sampling never picks (zero power) keeps weight 1. With
 Gaussians and after specular bounces. All three strategies are unbiased for
 the particle model (tested below).
 
+## Results: light sampling at equal time
+
+`benchmarks/results/gaussian_lighting/`: 30 s per render, 2 seeds, 4 cores.
+Two scenes with a Gaussian field as the only light:
+
+- `gaussian_cornell_sphere`: the 155k-Gaussian stand-in of the Cornell box
+  with the blue sphere inserted, 128x128, 8192-spp reference. One lamp
+  carries almost all the power.
+- `gaussian_lights`: 400 small bright Gaussians spread over a 14x14 area
+  and a dim wall (`benchmarks/scenes/`), 320x240, 16384-spp reference.
+
+![Convergence](../benchmarks/results/gaussian_lighting/plots/convergence_relmse.png)
+
+relMSE (reference noise removed, mean of 2 seeds), relative to MIS with
+power selection, on the whole image and on surfaces only (pixels where the
+camera ray hits geometry, `benchmarks/region_metrics.py`; elsewhere the
+camera sees the field directly and every strategy does the same):
+
+| Method | Cornell stand-in: image | surfaces (sphere) | many lights: image | surfaces |
+|---|---:|---:|---:|---:|
+| MIS, power selection | 1.0 (1.9e-4) | 1.0 (4.7e-3) | 1.0 (1.0e-3) | 1.0 (1.7e-3) |
+| BSDF sampling | 1.43 | 1.58 | 6.0 | 6.1 |
+| light sampling, power | 13.3 | 16.1 | 3.1 | 3.1 |
+| MIS, light tree | 1.07 | 1.07 | **0.54** | **0.54** |
+| light sampling, light tree | 80 | 98 | 1.17 | 1.16 |
+
+- **Light sampling of the field works, and MIS is never worse than the
+  better single strategy.** Against BSDF sampling, the 3DGRT-style way of
+  lighting objects from a capture, MIS lowers the error 1.6x on the
+  sphere and 6x in the many-lights scene.
+- **The light hierarchy wins where it should.** With 400 lights at very
+  different distances it halves MIS's error (0.54x), although it renders
+  10% fewer samples in the same time; light sampling alone improves 2.6x.
+- **And loses where its heuristic is wrong.** In the stand-in, one lamp
+  dominates, and the wall Gaussians next to the sphere are flat discs that
+  it sees edge-on. Power over distance treats them as emitting equally in
+  all directions and moves probability from the lamp to them: MIS is 7%
+  worse, and light sampling alone becomes heavy-tailed (rare lamp samples
+  with huge weights; its curve rises at the end). An emitter-orientation
+  bound in the node importance would fix exactly this; it is the next step
+  (stage 2c).
+
+![Renders](../benchmarks/results/gaussian_lighting/plots/renders.png)
+
 ## Tests
 
 `tests/test_gaussians.cpp`:
