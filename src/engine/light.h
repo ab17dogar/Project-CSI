@@ -196,8 +196,10 @@ private:
  * @brief The procedural sky gradient used when no HDRI is given.
  *
  * Reads the sky colors and sun brightness from the world on every lookup,
- * because the GUI edits them live. Sampled uniformly over the sphere: the
- * gradient is smooth and low dynamic range.
+ * because the GUI edits them live. Radiance depends only on the height y of
+ * the direction and is piecewise linear in y, so it is importance sampled
+ * exactly by luminance: pick a segment, invert its linear pdf in y, and take
+ * the azimuth uniformly (solid angle is dy dphi).
  */
 class sky_light : public light {
 public:
@@ -205,10 +207,8 @@ public:
 
   bool sample_li(const point3 &ref, double u1, double u2,
                  light_sample &out) const override;
-  double pdf_li(const point3 &, const vec3 &,
-                const hit_record *) const override {
-    return sampling::uniform_sphere_pdf();
-  }
+  double pdf_li(const point3 &ref, const vec3 &wi,
+                const hit_record *rec) const override;
   color le(const vec3 &dir) const override;
   double power() const override;
   void preprocess(const point3 &, double radius) override {

@@ -317,21 +317,87 @@ color sky_light::le(const vec3 &dir) const {
   return result * std::min(1.0, sun_brightness / 3.0);
 }
 
+namespace {
+
+// Luminance of the sky as a function of y: linear from the ground color at
+// y = -0.5 to the horizon color at y = 0 and on to the zenith color at
+// y = 1, constant ground color below y = -0.5 (see sky_light::le).
+struct sky_profile {
+  // Segments in y, with the luminance at both ends.
+  double y0[3] = {-1.0, -0.5, 0.0};
+  double y1[3] = {-0.5, 0.0, 1.0};
+  double f0[3], f1[3];
+  double mass[3]; // integral of luminance over the segment in y
+  double total = 0.0;
+
+  explicit sky_profile(const sky_light &sky) {
+    const double ground = luminance(sky.le(vec3(0, -1, 0)));
+    const double horizon = luminance(sky.le(vec3(1, 0, 0)));
+    const double zenith = luminance(sky.le(vec3(0, 1, 0)));
+    const double f[4] = {ground, ground, horizon, zenith};
+    for (int s = 0; s < 3; ++s) {
+      f0[s] = f[s];
+      f1[s] = f[s + 1];
+      mass[s] = 0.5 * (f0[s] + f1[s]) * (y1[s] - y0[s]);
+      total += mass[s];
+    }
+  }
+
+  double luminance_at(double y) const {
+    for (int s = 0; s < 3; ++s)
+      if (y <= y1[s] || s == 2) {
+        const double t = std::clamp((y - y0[s]) / (y1[s] - y0[s]), 0.0, 1.0);
+        return (1.0 - t) * f0[s] + t * f1[s];
+      }
+    return 0.0;
+  }
+};
+
+} // namespace
+
 bool sky_light::sample_li(const point3 &ref, double u1, double u2,
                           light_sample &out) const {
   (void)ref;
-  out.wi = sampling::square_to_uniform_sphere(u1, u2);
+  const sky_profile p(*this);
+  if (p.total <= 0.0)
+    return false;
+  // Choose a segment by its mass, then reuse u1 within it.
+  double u = u1 * p.total;
+  int s = 0;
+  while (s < 2 && u >= p.mass[s]) {
+    u -= p.mass[s];
+    ++s;
+  }
+  if (p.mass[s] <= 0.0)
+    return false;
+  u = std::clamp(u / p.mass[s], 0.0, 1.0);
+  // Invert the CDF of the linear pdf f0 (1 - t) + f1 t on [0, 1]. The
+  // rationalized root is stable for f0 = f1 and for f0 = 0.
+  const double f0 = p.f0[s], f1 = p.f1[s];
+  const double denom = f0 + std::sqrt(std::max(0.0, f0 * f0 + (f1 * f1 - f0 * f0) * u));
+  const double t = denom > 0.0 ? std::clamp(u * (f0 + f1) / denom, 0.0, 1.0) : u;
+  const double y = p.y0[s] + t * (p.y1[s] - p.y0[s]);
+  const double r = std::sqrt(std::max(0.0, 1.0 - y * y));
+  const double phi = 2.0 * PI * u2;
+  out.wi = vec3(r * std::cos(phi), y, r * std::sin(phi));
   out.dist = INF;
-  out.pdf = sampling::uniform_sphere_pdf();
+  out.pdf = p.luminance_at(y) / (2.0 * PI * p.total);
   out.li = le(out.wi);
   out.is_delta = false;
-  return true;
+  return out.pdf > 0.0;
+}
+
+double sky_light::pdf_li(const point3 &, const vec3 &wi,
+                         const hit_record *) const {
+  const sky_profile p(*this);
+  if (p.total <= 0.0)
+    return 0.0;
+  return p.luminance_at(unit_vector(wi).y()) / (2.0 * PI * p.total);
 }
 
 double sky_light::power() const {
-  const double mean =
-      (luminance(le(vec3(0, 1, 0))) + 2.0 * luminance(le(vec3(1, 0, 0))) +
-       luminance(le(vec3(0, -1, 0)))) /
-      4.0;
+  // Mean luminance over the sphere: the integral over y and phi of the
+  // luminance, divided by 4 pi.
+  const double mean = sky_profile(*this).total * 2.0 * PI / (4.0 * PI);
   return PI * scene_radius_ * scene_radius_ * mean;
 }

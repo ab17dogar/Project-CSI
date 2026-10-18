@@ -151,6 +151,30 @@ TEST(point_and_directional_lights_match_analytic) {
   }
 }
 
+// Procedural sky over a floor, plus the sun that sets its brightness. Above
+// the horizon Le(y) = (1 - y) Lb + y Lt, so the sky's irradiance on the floor
+// is 2 pi (Lb / 6 + Lt / 3) per channel.
+TEST(sky_lighting_matches_analytic) {
+  const double rho = 0.5;
+  const color top(0.2, 0.5, 1.4), bottom(1.3, 1.1, 0.9);
+  auto w = th::make_world(1);
+  w->objects.push_back(make_floor(std::make_shared<lambertian>(color(rho, rho, rho))));
+  // Brightness 3: the sky is not dimmed. 60 degrees from zenith.
+  w->psun = std::make_shared<sun>(vec3(std::sin(PI / 3), std::cos(PI / 3), 0), color(1, 1, 1));
+  w->skyColorTop = top;
+  w->skyColorBottom = bottom;
+  w->groundColor = color(0.3, 0.2, 0.1); // below the floor: must not contribute
+  w->prepare();
+  const color E = 2 * PI * (bottom / 6.0 + top / 3.0) + color(0.5, 0.5, 0.5);
+  const color expected = rho / PI * E;
+  for (LightStrategy s : kStrategies) {
+    path_tracer_settings ps;
+    ps.max_depth = 1;
+    ps.strategy = s;
+    check_estimate(th::estimate_radiance(*w, kDownRay, ps, 200000), expected, "sky", s);
+  }
+}
+
 TEST(environment_lighting_matches_analytic) {
   // Uniform environment Le over the upper hemisphere: E = pi * Le, so the
   // floor's radiance is rho * Le. A bright patch tests importance sampling;

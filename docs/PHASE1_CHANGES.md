@@ -35,8 +35,9 @@ test suite (`tests/`, run by `ctest`) checks each one.
   translucency (an honest replacement for the old "SSS").
 - **Lights** (`light.h`): triangle, parallelogram and sphere area lights (cone
   sampling from outside), point, directional, importance-sampled HDR
-  environment, procedural sky. `light_sampler.h` provides power-proportional
-  selection behind a spatially aware interface.
+  environment, procedural sky (importance sampled by luminance, analytically).
+  `light_sampler.h` provides power-proportional selection behind a spatially
+  aware interface.
 - **Integrator** (`integrator.cpp`): iterative path tracer, NEE plus power
   heuristic MIS, Russian roulette with η-scale correction, and a strategy
   switch (`--integrator mis|bsdf|nee`) for ablations.

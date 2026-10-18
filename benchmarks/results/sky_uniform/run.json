@@ -1,0 +1,43 @@
+{
+  "created": "2026-10-18T02:09:25+00:00",
+  "renderer_commit": "a766e03",
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor",
+    "logical_cores": 4,
+    "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+  },
+  "time_budget": 30.0,
+  "threads": 4,
+  "methods": {
+    "mis": [
+      "--integrator",
+      "mis"
+    ],
+    "bsdf": [
+      "--integrator",
+      "bsdf"
+    ],
+    "nee": [
+      "--integrator",
+      "nee"
+    ]
+  },
+  "references": {
+    "sun_sky_bunny": {
+      "scene": "sun_sky_bunny",
+      "spp": 16384,
+      "seed": 1000003,
+      "integrator": "mis",
+      "render_seconds": 231.2201024,
+      "wall_seconds": 233.04276585578918,
+      "renderer_commit": "a766e03-dirty",
+      "created": "2026-10-18T02:06:10+00:00",
+      "machine": {
+        "cpu": "Intel(R) Xeon(R) Processor",
+        "logical_cores": 4,
+        "system": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39"
+      }
+    }
+  },
+  "note": "Renderer built from a766e03 (uniform sky sampling) for an A/B against sky_luminance; run_benchmarks.py recorded the working tree's commit, corrected here."
+}

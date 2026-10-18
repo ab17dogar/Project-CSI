@@ -7,7 +7,9 @@
 #include "engine/quad.h"
 #include "engine/sampling.h"
 #include "engine/sphere.h"
+#include "engine/sun.h"
 #include "engine/triangle.h"
+#include "engine/world.h"
 #include "util/util.h"
 
 #include <memory>
@@ -134,4 +136,44 @@ TEST(environment_light_sampling_is_consistent) {
   CHECK_NEAR(pdf_int, 1.0, 5e-3, "env pdf integrates to 1");
   for (int k = 0; k < 3; ++k)
     CHECK_NEAR(e_ratio[k], ref[k], 0.01 * ref[k], "importance-sampled integral of Le, channel " << k);
+}
+
+// The procedural sky: importance sampling by luminance must report the pdf
+// that pdf_li gives, integrate to 1, and reproduce the integral of Le.
+TEST(sky_light_sampling_is_consistent) {
+  world w;
+  w.psun = std::make_shared<sun>(vec3(0.3, 0.8, 0.2), color(1.0, 0.9, 0.8));
+  w.skyColorTop = color(0.1, 0.3, 1.2);
+  w.skyColorBottom = color(1.5, 1.4, 1.2);
+  w.groundColor = color(0.2, 0.15, 0.1);
+  sky_light l(&w);
+
+  seed_thread_rng(5, 6);
+  const int n = 400000;
+  double e_ratio[3] = {0, 0, 0};
+  for (int i = 0; i < n; ++i) {
+    light_sample ls;
+    if (!l.sample_li(point3(0, 0, 0), random_double(), random_double(), ls))
+      continue;
+    CHECK_NEAR(ls.wi.length(), 1.0, 1e-12, "sky sample is a unit direction");
+    CHECK_NEAR(l.pdf_li(point3(0, 0, 0), ls.wi, nullptr), ls.pdf, 1e-9 * ls.pdf,
+               "sky sample pdf == pdf_li");
+    CHECK_NEAR((ls.li - l.le(ls.wi)).length(), 0, 1e-12, "sky radiance consistent");
+    for (int k = 0; k < 3; ++k)
+      e_ratio[k] += ls.li[k] / ls.pdf / n;
+    if (tf::current_test_failed())
+      return;
+  }
+  double ref[3] = {0, 0, 0}, pdf_int = 0;
+  const int m = 4000000;
+  for (int i = 0; i < m; ++i) {
+    const vec3 d = sampling::square_to_uniform_sphere((i + 0.5) / m, std::fmod(i * 0.6180339887498949, 1.0));
+    const color le = l.le(d);
+    for (int k = 0; k < 3; ++k)
+      ref[k] += le[k] * 4 * PI / m;
+    pdf_int += l.pdf_li(point3(0, 0, 0), d, nullptr) * 4 * PI / m;
+  }
+  CHECK_NEAR(pdf_int, 1.0, 1e-3, "sky pdf integrates to 1");
+  for (int k = 0; k < 3; ++k)
+    CHECK_NEAR(e_ratio[k], ref[k], 0.005 * ref[k], "importance-sampled integral of sky Le, channel " << k);
 }

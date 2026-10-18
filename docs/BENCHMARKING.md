@@ -157,11 +157,17 @@ What the numbers say:
   lights, BSDF sampling on the rough plates under the small ones.
 - **BSDF sampling renders 1.1-1.8x more samples in the same time** (no shadow
   rays) and still loses everywhere except `sun_sky_bunny`.
-- **`sun_sky_bunny`'s NEE weakness is the sky sampler, not MIS.** The sun is
-  a delta light, so every strategy samples it explicitly; the strategies only
-  differ on the sky, which `sky_light` samples uniformly over the sphere.
-  Cosine-weighted BSDF sampling fits a smooth sky better. Importance-sampling
-  the sky would close the gap, and MIS already matches the better strategy.
+- **`sun_sky_bunny` is the textbook case for BSDF sampling.** The sun is a
+  delta light, so every strategy samples it explicitly; the strategies only
+  differ on the sky, a smooth gradient. For a diffuse or rough receiver,
+  cosine-weighted BSDF sampling is then nearly proportional to the
+  integrand, and a light sampler that does not know the surface normal
+  cannot be. Sampling the sky by luminance (as the HDRI light does) does not
+  change that: an A/B run on the same reference and seeds gives light
+  sampling 40.9x the error of MIS with uniform sky sampling (`a766e03`) and
+  40.0x with luminance sampling (`benchmarks/results/sky_uniform`,
+  `sky_luminance`). Closing the gap would take product sampling of sky and
+  cosine; MIS already matches the better strategy without it.
 - **All curves reach the 1/t slope** once the rare high-energy paths that
   dominate the first passes (the bumps in `glass_caustic` and `env_objects`
   below 1 s) are resolved.
