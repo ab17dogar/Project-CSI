@@ -24,6 +24,13 @@ views interleaved between training views. `--poses jitter` perturbs the
 scene's own camera (`--jitter`, a fraction of its distance to the target),
 for closed rooms like the Cornell box that cannot be orbited from outside.
 
+![Dataset overview](figures/dataset_overview.png)
+
+`benchmarks/plot_dataset.py <dataset>` draws this overview: training views,
+camera positions over the initial point cloud, and one test view with and
+without the inserted objects, their mask, the change they make elsewhere,
+depth and normals.
+
 ## Layout
 
 | Path | Content |
@@ -91,6 +98,12 @@ python train.py -s /path/to/datasets/cornell_box --eval
 
 Other trainers that read the NeRF-synthetic layout work too. Training needs
 a CUDA GPU; the dataset itself is CPU only.
+
+The trained `point_cloud.ply` goes straight back into the path tracer as a
+`<GaussianField>` ([GAUSSIAN_FIELDS.md](GAUSSIAN_FIELDS.md)). Without a GPU,
+`benchmarks/points_to_gaussians.py` builds an unoptimized stand-in from the
+dataset, and `benchmarks/insertion_demo.py` inserts the objects into either
+and scores the result against `test_inserted/` per region.
 
 ## Caveats
 

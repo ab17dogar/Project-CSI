@@ -75,6 +75,11 @@ jobs:
           python3 benchmarks/make_dataset.py env_objects --train 3 --test 0 --spp 1 \
             --width 128 --points 3000 --out build/dataset_env
           python3 benchmarks/check_dataset.py build/dataset_env
+          # Gaussian stand-in of the insertion dataset, rendered with and
+          # without the inserted sphere through the path tracer.
+          python3 benchmarks/points_to_gaussians.py build/dataset --stride 2
+          python3 benchmarks/insertion_demo.py build/dataset --view 0 --spp 2 --render-only
+          test -s build/dataset/demo/field_inserted_r_000.pfm
 
       - name: Generated scenes are up to date
         if: matrix.os == 'ubuntu-latest'
