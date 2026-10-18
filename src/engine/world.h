@@ -80,6 +80,8 @@ public:
   // A 3DGS capture rendered as an emitting, absorbing medium (optional).
   // Not a hittable: the integrator composites it along every ray segment.
   std::shared_ptr<gaussian_field> field;
+  // Its light (in `lights`, set by prepare() if it emits).
+  const light *fieldLight = nullptr;
 
   // Dynamic sky colors (for interactive rendering)
   color skyColorTop{0.5, 0.7, 1.0};    // Sky color at zenith

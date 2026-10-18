@@ -165,6 +165,12 @@ void world::prepare() {
       lights.push_back(std::make_shared<sky_light>(this));
   }
 
+  fieldLight = nullptr;
+  if (field && field->power() > 0.0) {
+    lights.push_back(std::make_shared<gaussian_field_light>(field.get()));
+    fieldLight = lights.back().get();
+  }
+
   std::vector<const light *> raw;
   raw.reserve(lights.size());
   for (size_t i = 0; i < lights.size(); ++i) {

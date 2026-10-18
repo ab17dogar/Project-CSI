@@ -33,13 +33,13 @@ REL_EPS = 0.01  # relMSE denominator offset, as in the metrics library
 
 
 def relmse(a, b, mask):
-    """Mean and median of the per-pixel relative squared error. A few
-    pixels can dominate the mean (an emitter that moved), so report both."""
+    """Mean and median of the per-pixel relative squared error, per channel
+    as in the metrics library and averaged over the channels of a pixel. A
+    few pixels can dominate the mean (an emitter that moved), so report both."""
     import numpy as np
     if not mask.any():
         return None
-    lum = 0.2126 * b[..., 0] + 0.7152 * b[..., 1] + 0.0722 * b[..., 2]
-    e = ((a - b) ** 2).mean(axis=-1) / (lum ** 2 + REL_EPS)
+    e = (((a - b) ** 2) / (b ** 2 + REL_EPS)).mean(axis=-1)
     return {"mean": float(e[mask].mean()), "median": float(np.median(e[mask]))}
 
 
@@ -56,6 +56,9 @@ def main():
     ap.add_argument("--bin", help="renderer binary")
     ap.add_argument("--render-only", action="store_true", help="skip metrics and figure")
     ap.add_argument("--reuse", action="store_true", help="reuse existing renders in <dataset>/demo")
+    ap.add_argument("--write-scene", type=Path, metavar="FILE",
+                    help="only write the inserted scene, with the view's camera, to FILE")
+    ap.add_argument("--width", type=int, help="image width of --write-scene (default: the dataset's)")
     args = ap.parse_args()
 
     d = args.dataset.resolve()
@@ -81,6 +84,18 @@ def main():
 </ItemContainer>""")
     scenes = {"field": base,
               "field_inserted": merge_insert(base, ET.parse(d / "insert.xml").getroot())}
+    if args.write_scene:
+        # A standalone scene for benchmarks: camera of the view embedded.
+        root = scenes["field_inserted"]
+        cam = root.find("Camera")
+        for tag, v in (("Look_From", view["look_from"]), ("Look_at", view["look_at"]), ("Up", meta["up"])):
+            e = cam.find(tag)
+            e.set("x", repr(v[0])), e.set("y", repr(v[1])), e.set("z", repr(v[2]))
+        if args.width:
+            root.find("Config").find("Width").set("value", str(args.width))
+        ET.ElementTree(root).write(args.write_scene, encoding="unicode", xml_declaration=True)
+        print(f"Wrote {args.write_scene}")
+        return
     pfms = {}
     for name, root in scenes.items():
         xml = out / f"{name}.xml"

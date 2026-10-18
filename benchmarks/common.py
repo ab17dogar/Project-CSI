@@ -13,7 +13,7 @@ REFS_DIR = BENCH / "references"
 RESULTS_DIR = BENCH / "results"
 
 SCENES = ["cornell_box", "cornell_glossy", "veach_mis", "glass_caustic",
-          "env_objects", "sun_sky_bunny"]
+          "env_objects", "sun_sky_bunny", "gaussian_lights"]
 
 # References use their own seed range. A test render that shares sample
 # streams with its reference is correlated with it, and its measured error
@@ -55,7 +55,18 @@ def machine_info():
     return {"cpu": cpu, "logical_cores": os.cpu_count(), "system": platform.platform()}
 
 
+def scene_name(arg):
+    """A suite scene's name, or the file stem of a scene given as a path."""
+    return Path(arg).stem if str(arg).endswith(".xml") else arg
+
+
 def scene_path(name):
+    """Scene file of a suite scene, or a path to any scene .xml."""
+    if str(name).endswith(".xml"):
+        p = Path(name).resolve()
+        if not p.is_file():
+            sys.exit(f"no scene file {p}")
+        return p
     p = SCENES_DIR / f"{name}.xml"
     if not p.is_file():
         sys.exit(f"unknown scene '{name}' (no {p})")

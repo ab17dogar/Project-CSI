@@ -98,13 +98,23 @@ color trace_path(const ray &camera_ray, const world &scene,
     const bool hit_surface = scene.hit(r, t_min, INF, rec);
 
     // The Gaussian field in front of the surface (or along the whole ray):
-    // its emission, and attenuation of everything behind it. No light
-    // sampling strategy covers the field yet, so its emission has full
-    // weight under every strategy.
+    // its emission, and attenuation of everything behind it. After a
+    // non-specular bounce the field was also light-sampled at the previous
+    // vertex, so each Gaussian's emission is MIS-weighted here (or, with
+    // light sampling only, counted only where light sampling cannot reach).
     if (scene.field) {
       color le;
       double transmittance;
-      scene.field->trace(r, t_min, hit_surface ? rec.t : INF, le, transmittance);
+      gaussian_field::mis_context mis;
+      const gaussian_field::mis_context *pmis = nullptr;
+      if (!specular_bounce && scene.fieldLight && (combine || !use_bsdf_hits)) {
+        mis.origin = prev_p;
+        mis.bsdf_pdf = prev_bsdf_pdf;
+        mis.light_pmf = lights->pmf(prev_p, prev_n, scene.fieldLight);
+        mis.nee_only = !use_bsdf_hits;
+        pmis = &mis;
+      }
+      scene.field->trace(r, t_min, hit_surface ? rec.t : INF, le, transmittance, pmis);
       L += beta * le;
       beta *= transmittance;
       if (is_black(beta))
@@ -178,8 +188,10 @@ color trace_path(const ray &camera_ray, const world &scene,
               w = sampling::power_heuristic(light_pdf,
                                             mat->pdf(rec, wo, ls.wi));
             // Light reaching the shading point through the field.
+            // A Gaussian light sample's own Gaussian emits, it does not block.
             const double visible =
-                scene.field ? scene.field->transmittance(shadow, t_min, t_max) : 1.0;
+                scene.field ? scene.field->transmittance(shadow, t_min, t_max, ls.field_index)
+                            : 1.0;
             L += beta * f * ls.li * (w * visible / light_pdf);
           }
         }

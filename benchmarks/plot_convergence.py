@@ -28,6 +28,8 @@ METHOD_STYLE = {
     "mis": {"color": "#2a78d6", "marker": "o", "label": "MIS"},
     "bsdf": {"color": "#eb6834", "marker": "s", "label": "BSDF sampling"},
     "nee": {"color": "#1baf7a", "marker": "^", "label": "Light sampling (NEE)"},
+    "mis_tree": {"color": "#eda100", "marker": "D", "label": "MIS, light tree"},
+    "nee_tree": {"color": "#e87ba4", "marker": "v", "label": "Light sampling, light tree"},
 }
 FALLBACK_COLORS = ["#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 SURFACE, INK, INK_2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
@@ -45,6 +47,8 @@ def load_run(run_dir):
     """{scene: {method: [rows of seed 1, rows of seed 2, ...]}}"""
     data = defaultdict(lambda: defaultdict(list))
     for csv_path in sorted(run_dir.glob("*/*.csv")):
+        if csv_path.parent.name == "plots":  # derived tables, not logs
+            continue
         rows = common.read_log(csv_path)
         if rows:
             data[rows[0]["scene"]][rows[0]["method"]].append(rows)

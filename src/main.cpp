@@ -2,6 +2,7 @@
 #include "engine/camera.h"
 #include "engine/config.h"
 #include "engine/factories/factory_methods.h"
+#include "engine/gaussian_field.h"
 #include "engine/mesh.h"
 #include "engine/render_runner.h"
 #include "engine/sun.h"
@@ -138,7 +139,7 @@ int main(int argc, char **argv) {
   string referencePath, refVariancePath, logPath, varianceOutPath, label;
   bool logFlip = true;
   // Camera overrides (multi-view dataset export) and geometry output
-  string lookFromArg, lookAtArg, upArg, geometryPrefix;
+  string lookFromArg, lookAtArg, upArg, geometryPrefix, fieldSampler;
   double fovOverride = -1.0;
   const Raytracer::presets::RenderPresetDefinition *presetDefinition = nullptr;
 
@@ -195,6 +196,12 @@ int main(int argc, char **argv) {
       fovOverride = atof(argv[++i]);
     } else if (a == "--exposure" && i + 1 < argc) {
       g_display_exposure = std::pow(2.0, atof(argv[++i]));
+    } else if (a == "--field-sampler" && i + 1 < argc) {
+      fieldSampler = argv[++i];
+      if (fieldSampler != "power" && fieldSampler != "tree") {
+        cerr << "Unknown field sampler '" << fieldSampler << "' (expected power or tree)" << endl;
+        return 4;
+      }
     } else if (a == "--geometry-out" && i + 1 < argc) {
       geometryPrefix = argv[++i];
     } else if (a == "--max-depth" && i + 1 < argc) {
@@ -251,6 +258,7 @@ int main(int argc, char **argv) {
           << "  --up X,Y,Z         Override the camera up vector\n"
           << "  --fov DEG          Override the vertical field of view\n"
           << "  --exposure STOPS   Exposure of the PNG output (HDR output unchanged)\n"
+          << "  --field-sampler S  Gaussian light selection: power or tree\n"
           << "  --geometry-out P   Write P_depth.pfm (z-depth) and P_normal.pfm\n"
           << "                     (world space) of the first hit per pixel\n"
           << "\nMeasurement (progressive rendering, no denoising):\n"
@@ -340,6 +348,10 @@ int main(int argc, char **argv) {
 
   // Apply denoiser setting
   pworld->pconfig->enableDenoiser = useDenoiser;
+
+  if (!fieldSampler.empty() && pworld->field)
+    pworld->field->set_selection(fieldSampler == "tree" ? gaussian_field::selection::tree
+                                                        : gaussian_field::selection::power);
 
   // Camera overrides keep the scene's lens (aperture, focus distance).
   if (!lookFromArg.empty() || !lookAtArg.empty() || !upArg.empty() ||

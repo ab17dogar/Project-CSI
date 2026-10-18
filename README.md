@@ -27,7 +27,7 @@ A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built fr
 - Intel OIDN denoiser integration (optional)
 
 ### Verification
-- **43 correctness tests** (`ctest`): χ² goodness-of-fit for every BSDF sampler, sample/pdf consistency for every light, analytic irradiance from rectangle, triangle, sphere, point, sun, sky and environment lights under each strategy, a white furnace test, BVH vs. brute force, Gaussian fields against closed forms and brute force, determinism, and a statistical regression test against stored references
+- **47 correctness tests** (`ctest`): χ² goodness-of-fit for every BSDF sampler, sample/pdf consistency for every light, analytic irradiance from rectangle, triangle, sphere, point, sun, sky and environment lights under each strategy, a white furnace test, BVH vs. brute force, Gaussian fields against closed forms and brute force, determinism, and a statistical regression test against stored references
 - Runs in CI on Linux and macOS, and under AddressSanitizer + UBSan
 
 ### Measurement
@@ -35,7 +35,7 @@ A high-performance **Monte Carlo Path Tracer** with an interactive GUI, built fr
 - Per-pixel variance output and **reference-noise-corrected** error
 - `rt_compare` image comparison tool; ray counts and Mrays/s
 - A six-scene benchmark suite (including Veach's MIS scene and an HDR sun-and-sky environment), plus scripts for references, equal-time sweeps and convergence plots. See [docs/BENCHMARKING.md](docs/BENCHMARKING.md)
-- **3D Gaussian Splatting captures in the path tracer**: standard 3DGS `.ply` files (SH up to degree 3) rendered with the 3DGRT particle model, lighting and shadowing inserted geometry. See [docs/GAUSSIAN_FIELDS.md](docs/GAUSSIAN_FIELDS.md)
+- **3D Gaussian Splatting captures in the path tracer**: standard 3DGS `.ply` files (SH up to degree 3) rendered with the 3DGRT particle model, lighting and shadowing inserted geometry, and light-sampled (by power or a light hierarchy) with per-Gaussian MIS. See [docs/GAUSSIAN_FIELDS.md](docs/GAUSSIAN_FIELDS.md)
 - **Multi-view dataset export** for 3D Gaussian Splatting: training and test views with poses (`transforms.json`), depth, normals and an initial point cloud, plus ground-truth test views with synthetic objects inserted. See [docs/DATASETS.md](docs/DATASETS.md)
 
 ### Interactive GUI

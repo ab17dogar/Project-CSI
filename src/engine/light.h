@@ -21,6 +21,7 @@ struct light_sample {
   color li{0, 0, 0};  // radiance arriving along -wi (delta lights: I/d^2, E)
   double pdf = 0.0;   // solid-angle density (delta lights: 1 by convention)
   bool is_delta = false;
+  int field_index = -1; // Gaussian the sample came from (Gaussian fields)
 };
 
 /**

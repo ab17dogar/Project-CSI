@@ -31,6 +31,7 @@ EXPOSURE_STOPS = {
     "cornell_glossy": 1.5,
     "veach_mis": 1.0,
     "sun_sky_bunny": -1.0,
+    "gaussian_cornell_sphere": 1.5,
 }
 
 
@@ -71,7 +72,9 @@ def main():
         sys.exit("matplotlib is required: pip install matplotlib")
 
     summary = read_summary(args.run_dir / "summary.csv")
-    scenes = [s for s in common.SCENES if (args.run_dir / s).is_dir()]
+    extra = sorted(p.name for p in args.run_dir.iterdir()
+                   if p.is_dir() and p.name != "plots" and p.name not in common.SCENES)
+    scenes = [s for s in common.SCENES if (args.run_dir / s).is_dir()] + extra
     known = list(METHOD_STYLE)
     found = {m for (_, m, _) in summary}
     methods = [m for m in known if m in found] + sorted(found - set(known))

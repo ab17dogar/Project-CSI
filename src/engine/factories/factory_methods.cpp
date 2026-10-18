@@ -203,8 +203,9 @@ shared_ptr<world> LoadScene(string fileName) {
   pworld->objects = LoadObjects(objectsElem);
 
   // Gaussian field (optional, at most one):
-  //   <GaussianField file="capture.ply"> <Position x y z/> <Scale value/>
-  //   <Rotation x y z/> (degrees, applied as Rx Ry Rz) </GaussianField>
+  //   <GaussianField file="capture.ply" sampler="power|tree"> <Position x y z/>
+  //   <Scale value/> <Rotation x y z/> (degrees, applied as Rx Ry Rz)
+  //   </GaussianField>
   if (XMLElement *fieldElem = objectsElem->FirstChildElement("GaussianField")) {
     if (fieldElem->NextSiblingElement("GaussianField"))
       cerr << "LoadScene: only the first <GaussianField> is used" << endl;
@@ -235,6 +236,9 @@ shared_ptr<world> LoadScene(string fileName) {
     field->set_transform(vec_of(fieldElem->FirstChildElement("Position"), 0.0), scale,
                          vec_of(fieldElem->FirstChildElement("Rotation"), 0.0));
     field->build();
+    if (const char *sampler = fieldElem->Attribute("sampler"))
+      field->set_selection(std::string(sampler) == "tree" ? gaussian_field::selection::tree
+                                                          : gaussian_field::selection::power);
     pworld->field = field;
   }
 

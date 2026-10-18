@@ -30,6 +30,10 @@ METHODS = {
     "mis": ["--integrator", "mis"],
     "bsdf": ["--integrator", "bsdf"],
     "nee": ["--integrator", "nee"],
+    # Gaussian fields: light selection by the light hierarchy instead of
+    # power (no effect on scenes without a field).
+    "mis_tree": ["--integrator", "mis", "--field-sampler", "tree"],
+    "nee_tree": ["--integrator", "nee", "--field-sampler", "tree"],
 }
 
 
@@ -68,7 +72,8 @@ def main():
     }
 
     summary = []
-    for scene in args.scenes:
+    for scene_arg in args.scenes:
+        scene_file, scene = common.scene_path(scene_arg), common.scene_name(scene_arg)
         ref_meta = common.load_reference_meta(scene)
         run_info["references"][scene] = ref_meta
         ref_dir = common.REFS_DIR / scene
@@ -79,7 +84,7 @@ def main():
                 if seed == ref_meta["seed"]:
                     raise SystemExit("test seed collides with the reference seed")
                 stem = scene_out / f"{method}_s{seed}"
-                cmd = [renderer, "--scene", common.scene_path(scene),
+                cmd = [renderer, "--scene", scene_file,
                        "--time-budget", args.time, "--seed", seed,
                        "--reference", ref_dir / "reference.pfm",
                        "--ref-variance", ref_dir / "variance.pfm",

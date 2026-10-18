@@ -34,7 +34,8 @@ def main():
     args = ap.parse_args()
 
     renderer = common.find_renderer(args.bin)
-    for scene in args.scenes:
+    for scene_arg in args.scenes:
+        scene_file, scene = common.scene_path(scene_arg), common.scene_name(scene_arg)
         out = common.REFS_DIR / scene
         meta_path = out / "meta.json"
         if meta_path.is_file() and not args.force:
@@ -44,7 +45,7 @@ def main():
                 print(f"{scene}: reference exists ({meta['spp']} spp), skipping")
                 continue
         out.mkdir(parents=True, exist_ok=True)
-        cmd = [renderer, "--scene", common.scene_path(scene), "--progressive",
+        cmd = [renderer, "--scene", scene_file, "--progressive",
                "--samples", args.spp, "--seed", common.REFERENCE_SEED,
                "--integrator", "mis", "--no-denoise", "--quiet",
                "--out", out / "reference.png", "--pfm", out / "reference.pfm",
