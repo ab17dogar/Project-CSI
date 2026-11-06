@@ -95,7 +95,7 @@ sudo apt install cmake build-essential libglfw3-dev libgl1-mesa-dev
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/project-csi.git
+git clone https://github.com/ab17dogar/project-csi.git
 cd project-csi
 ```
 
